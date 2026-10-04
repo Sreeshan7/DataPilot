@@ -63,6 +63,12 @@ _LABEL_NOISE = frozenset(
         "labelled", "labels", "level", "levels", "measure", "measurement",
         "output", "reading", "readings", "score", "scores", "status", "target",
         "targets", "type", "types", "value", "values", "variable", "variables",
+        # Quantifiers say *how* a quantity is expressed, not *which* quantity.
+        # "attendance rate" and "hospital readmission rate" share only "rate",
+        # and letting that one word resolve a label space made an exam-results
+        # dataset satisfy a readmission target.
+        "amount", "count", "number", "percent", "percentage", "proportion",
+        "rate", "ratio", "total",
     }
 )
 

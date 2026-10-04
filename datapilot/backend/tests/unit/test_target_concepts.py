@@ -365,3 +365,29 @@ def test_tokens_helper_is_reusable_for_other_services():
         "flow",
     ]
     assert value_tokens("Malicious-vs-Normal_Flows") == ["malicious", "normal", "flow"]
+
+
+class TestQuantifierWordsAreNotLabelValues:
+    """"rate" alone resolved a readmission target to the ``attendance + rate`` space."""
+
+    def test_ranker_does_not_match_a_target_on_a_quantifier_alone(self):
+        candidate = make_candidate(
+            target_description="Whether the student passed the final examination"
+        )
+        ranked = _rank_one(candidate, make_requirements(target="hospital readmission rate"))
+        factor = next(f for f in ranked.ranking_factors if f.name.value == "target_match")
+        assert factor.score != 1.0
+        assert "hospital readmission rate" not in factor.matched_terms
+
+    @pytest.mark.parametrize(
+        "target", ["attendance rate", "customer churn rate", "fraud amount", "default ratio"]
+    )
+    def test_quantifier_words_never_form_a_label_value(self, target):
+        from app.services.datasets.target_concepts import value_tokens
+
+        assert not set(value_tokens(target)) & {"rate", "ratio", "amount"}
+
+
+def _rank_one(candidate, requirements):
+    engine = DatasetRankingEngine(settings=make_settings(), now=TEST_NOW)
+    return engine.rank([candidate], requirements)[0]
