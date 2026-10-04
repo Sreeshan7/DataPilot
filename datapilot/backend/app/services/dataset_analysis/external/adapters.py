@@ -301,6 +301,15 @@ class OpenMLAdapter(ExternalAdapter):
 # ---------------------------------------------------------------------------
 
 
+def _hf_class_note(dtype: Any) -> Optional[str]:
+    """"10 classes" for a ClassLabel feature that lists its class names."""
+    if isinstance(dtype, dict) and isinstance(dtype.get("class_label"), dict):
+        names = dtype["class_label"].get("names")
+        if isinstance(names, (dict, list)) and names:
+            return f"{len(names)} classes"
+    return None
+
+
 def _hf_dtype(dtype: Any) -> Optional[str]:
     if isinstance(dtype, str):
         return dtype
@@ -364,7 +373,10 @@ class HuggingFaceAdapter(ExternalAdapter):
             for feature in _as_list(config.get("features")):
                 if isinstance(feature, dict) and feature.get("name") and feature["name"] not in seen:
                     seen.add(feature["name"])
-                    pairs.append((str(feature["name"]), _hf_dtype(feature.get("dtype")), None, None))
+                    pairs.append((
+                        str(feature["name"]), _hf_dtype(feature.get("dtype")), None,
+                        _hf_class_note(feature.get("dtype")),
+                    ))
         columns = _schema_columns(pairs, EvidenceLevel.REGISTRY_VERIFIED)
 
         rows = None

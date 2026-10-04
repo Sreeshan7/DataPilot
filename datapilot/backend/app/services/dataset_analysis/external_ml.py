@@ -14,6 +14,7 @@ So this module differs from the parsed-file path in three ways, all deliberate:
 
 from __future__ import annotations
 
+import re
 from typing import Optional
 
 from app.schemas.dataset_analysis import (
@@ -45,6 +46,10 @@ _CATEGORICAL_TYPES = {"categorical", "nominal", "string", "binary", "boolean", "
 def _kind(column: SchemaColumn, meta: ExternalMetadata) -> TargetKind:
     declared = (column.data_type or "").lower()
     classes = meta.registry_statistics.get("NumberOfClasses")
+    if classes is None and declared == "class_label":
+        # Hugging Face publishes the number of classes of a ClassLabel feature.
+        found = re.match(r"(\d+) classes", column.description or "")
+        classes = float(found.group(1)) if found else None
     if declared == "binary" or declared == "boolean" or (classes is not None and classes == 2):
         return TargetKind.BINARY
     if declared in _CATEGORICAL_TYPES:
@@ -151,12 +156,22 @@ def detect_external_tasks(
                     task=MLTask.TIME_SERIES_FORECASTING, target=target.column, state=state, confidence=confidence,
                     evidence=evidence + [EvidenceItem(statement="the registry lists 'Time Series' among the dataset's tasks", level=registry)],
                     limitations=limits))
-        elif column is not None and _is_categorical(column) and any("classif" in t for t in declared):
+        elif any("classif" in t for t in declared) or (column is not None and _is_categorical(column)):
+            # The type alone does not say how many classes there are (UCI lists a coded
+            # diagnosis as "Integer"), but the registry's own declared task or a categorical
+            # type does say it is classification.
+            why = ("the registry declares classification as a task" if any("classif" in t for t in declared)
+                   else f"the registry lists the column's type as {column.data_type}")
             tasks.append(TaskCandidate(
                 task=MLTask.MULTICLASS_CLASSIFICATION, target=target.column, state=state, confidence=confidence,
-                evidence=evidence + [EvidenceItem(statement="the registry declares classification as a task", level=registry)],
+                evidence=evidence + [EvidenceItem(statement=why, level=registry)],
                 limitations=limits + [
                     "the number of classes was not published: this is classification, and may be binary"]))
+        elif any("regress" in t for t in declared):
+            tasks.append(TaskCandidate(
+                task=MLTask.REGRESSION, target=target.column, state=state, confidence=confidence,
+                evidence=evidence + [EvidenceItem(statement="the registry declares regression as a task", level=registry)],
+                limitations=limits))
 
     if any("cluster" in t for t in declared):
         tasks.append(TaskCandidate(

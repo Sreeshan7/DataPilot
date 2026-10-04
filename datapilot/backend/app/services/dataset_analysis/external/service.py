@@ -90,6 +90,34 @@ def _base_name(name: str) -> str:
     return _VERSION_SUFFIX.sub("", name)
 
 
+def _distinct_alternatives(
+    others: list[tuple[ExternalAdapter, ExternalHit]]
+) -> list[DatasetAlternative]:
+    """Other datasets sharing the name, with repeats and versions collapsed.
+
+    Versions of one OpenML dataset (it lists 26 of Iris) with the same shape are one
+    alternative, not many: the first, which is the best by authority and recency, stands for
+    them. Kaggle and Hugging Face datasets with the same title but different owners are
+    genuinely different datasets and are never merged.
+    """
+    seen: set[tuple] = set()
+    out: list[DatasetAlternative] = []
+    for _, hit in others:
+        if hit.source == "openml":
+            key = (hit.source, name_token_key(_base_name(hit.name)), hit.column_count, hit.row_count)
+        else:
+            key = (hit.source, hit.identifier)
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(DatasetAlternative(
+            name=hit.name, source=hit.source, identifier=hit.identifier, url=hit.url,
+            column_count=hit.column_count, row_count=hit.row_count))
+        if len(out) >= MAX_ALTERNATIVES:
+            break
+    return out
+
+
 def _column_key(names: list[str]) -> frozenset[str]:
     return frozenset(re.sub(r"[^a-z0-9]+", "", n.lower()) for n in names if n)
 
@@ -214,20 +242,14 @@ class ExternalDatasetMetadataService:
                 CONFIDENCE_AUTHORITATIVE_AMONG_MANY if primary_adapter.authority <= 1
                 else CONFIDENCE_USER_UPLOADED_AMONG_MANY
             )
-        alternatives = [
-            DatasetAlternative(
-                name=h.name, source=h.source, identifier=h.identifier, url=h.url,
-                column_count=h.column_count, row_count=h.row_count,
-            )
-            for _, h in others[:MAX_ALTERNATIVES]
-        ]
+        alternatives = _distinct_alternatives(others)
         conflicts = await self._conflicts(metadata, others)
         out = self._resolved(resolution, metadata, status, confidence)
         out = out.model_copy(update={
             "alternatives": alternatives,
             "needs_confirmation": status is ResolutionStatus.PROBABLE,
             "clarification": (
-                f"{len(others) + 1} datasets share the name '{name}'. DataPilot analysed the "
+                f"{len(alternatives) + 1} datasets share the name '{name}'. DataPilot analysed the "
                 f"{primary_hit.source} one ({metadata.name}); give a link if you meant another."
                 if others else None
             ),
