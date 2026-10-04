@@ -242,3 +242,38 @@ class TestListingDepthLimitation:
     def test_an_ai_candidate_is_not_described_as_a_listing(self):
         ai = normalize_genai_candidate(make_genai_candidate())
         assert "listing_metadata_only" not in {lim.code for lim in _intel(ai).limitations}
+
+
+# ---------------------------------------------------------------------------
+# Alternatives within one dimension: any match settles it
+# ---------------------------------------------------------------------------
+
+
+class TestAlternativesWithinADimension:
+    """A project that lists several acceptable tasks is served by a dataset
+    supporting any of them. It was previously marked MISMATCH for the others."""
+
+    def test_supporting_one_of_several_listed_tasks_is_a_match(self):
+        candidate = make_candidate(task_types=["classification"])
+        intel = _intel(candidate, make_requirements(tasks=["classification", "regression"]))
+        assert intel.compatibility.task is MatchStatus.MATCH
+        assert intel.compatibility.contradictions == []
+
+    def test_supporting_none_of_the_listed_tasks_is_still_a_mismatch(self):
+        candidate = make_candidate(task_types=["time series forecasting"])
+        intel = _intel(candidate, make_requirements(tasks=["classification", "regression"]))
+        assert intel.compatibility.task is MatchStatus.MISMATCH
+        assert intel.compatibility.overall is CompatibilityLevel.LOW
+
+    def test_the_dimension_agrees_with_the_contradiction_detector(self):
+        for declared, expect in (
+            (["classification"], MatchStatus.MATCH),
+            (["regression"], MatchStatus.MATCH),
+            (["clustering"], MatchStatus.MISMATCH),
+        ):
+            intel = _intel(
+                make_candidate(task_types=declared),
+                make_requirements(tasks=["classification", "regression"]),
+            )
+            assert intel.compatibility.task is expect
+            assert bool(intel.compatibility.contradictions) is (expect is MatchStatus.MISMATCH)

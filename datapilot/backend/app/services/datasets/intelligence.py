@@ -746,11 +746,17 @@ def _dimension(
             layer=EvidenceLayer.UNKNOWN,
         )
 
+    # The terms of one dimension are alternatives, not a checklist: a project that
+    # lists "classification, regression" is served by a dataset supporting either,
+    # and a domain plus its subdomain are two views of one subject. So any MATCH
+    # settles the dimension, exactly as the contradiction detector treats an
+    # overlapping task list; MISMATCH applies only when nothing matched. (Features
+    # are different - each is a separate requirement - and have their own coverage.)
     statuses = {v.status for v in verdicts}
-    if MatchStatus.MISMATCH in statuses:
-        status = MatchStatus.MISMATCH
-    elif MatchStatus.MATCH in statuses:
+    if MatchStatus.MATCH in statuses:
         status = MatchStatus.MATCH
+    elif MatchStatus.MISMATCH in statuses:
+        status = MatchStatus.MISMATCH
     else:
         status = MatchStatus.UNKNOWN
 
