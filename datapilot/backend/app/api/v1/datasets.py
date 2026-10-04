@@ -29,6 +29,7 @@ from app.schemas.project import (
 from app.services.datasets.base import DatasetSourceError, redact_secrets
 from app.services.datasets.discovery import DatasetDiscoveryService
 from app.services.datasets.intelligence import build_intelligence_report
+from app.services.datasets.recommendation import build_recommendations
 from app.services.llm_service import LLMServiceError
 
 logger = get_logger(__name__)
@@ -319,6 +320,7 @@ async def recommend_datasets(
         ) from exc
 
     intelligence = build_intelligence_report(result.candidates, requirements)
+    confidences, final_recommendation = build_recommendations(result.candidates, intelligence)
     recommendations = [
         RankedDataset(
             rank=index,
@@ -329,9 +331,10 @@ async def recommend_datasets(
             reasons=candidate.ranking_reasons,
             ranking_factors=candidate.ranking_factors,
             intelligence=record,
+            confidence=confidence,
         )
-        for index, (candidate, record) in enumerate(
-            zip(result.candidates, intelligence), start=1
+        for index, (candidate, record, confidence) in enumerate(
+            zip(result.candidates, intelligence, confidences), start=1
         )
     ]
 
@@ -343,6 +346,7 @@ async def recommend_datasets(
         recommendations=recommendations,
         sources=result.sources,
         ranking_weights=service.ranking_weights(),
+        final_recommendation=final_recommendation,
         meta=_meta(result),
     )
 
