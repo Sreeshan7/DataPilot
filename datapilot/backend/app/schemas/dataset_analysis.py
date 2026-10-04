@@ -506,6 +506,13 @@ class ExternalMetadata(BaseModel):
     schema_level: EvidenceLevel = EvidenceLevel.UNKNOWN
     schema_source: str = "none"
     schema_note: Optional[str] = None
+    registry_statistics: dict[str, float] = Field(
+        default_factory=dict,
+        description=(
+            "Aggregate figures the registry itself published (e.g. OpenML's "
+            "NumberOfMissingValues). They are the registry's computation, not DataPilot's."
+        ),
+    )
 
 
 class ExternalConflict(BaseModel):
