@@ -1,0 +1,212 @@
+[
+  {
+    "http": 200,
+    "scenario": "uci_name_iris",
+    "status": "passed",
+    "summary": {
+      "alternatives": 5,
+      "best_target": "class",
+      "columns": 5,
+      "mode": "external_metadata",
+      "resolution": "probable",
+      "rows": 150,
+      "schema_level": "registry_verified",
+      "tasks": [
+        "multiclass_classification"
+      ]
+    },
+    "violations": []
+  },
+  {
+    "http": 200,
+    "scenario": "openml_name_titanic",
+    "status": "passed",
+    "summary": {
+      "alternatives": 5,
+      "best_target": "survived",
+      "columns": 8,
+      "mode": "external_metadata",
+      "resolution": "probable",
+      "rows": 891,
+      "schema_level": "registry_verified",
+      "tasks": [
+        "binary_classification"
+      ]
+    },
+    "violations": []
+  },
+  {
+    "http": 200,
+    "scenario": "huggingface_name_mnist",
+    "status": "passed",
+    "summary": {
+      "alternatives": 3,
+      "best_target": "label",
+      "columns": 2,
+      "mode": "external_metadata",
+      "resolution": "probable",
+      "rows": 70000,
+      "schema_level": "registry_verified",
+      "tasks": [
+        "multiclass_classification"
+      ]
+    },
+    "violations": []
+  },
+  {
+    "http": 200,
+    "scenario": "uci_link_heart_disease",
+    "status": "passed",
+    "summary": {
+      "alternatives": 0,
+      "best_target": "num",
+      "columns": 14,
+      "mode": "external_metadata",
+      "resolution": "resolved",
+      "rows": 303,
+      "schema_level": "registry_verified",
+      "tasks": [
+        "multiclass_classification"
+      ]
+    },
+    "violations": []
+  },
+  {
+    "http": 200,
+    "scenario": "openml_link_iris",
+    "status": "passed",
+    "summary": {
+      "alternatives": 0,
+      "best_target": "class",
+      "columns": 5,
+      "mode": "external_metadata",
+      "resolution": "resolved",
+      "rows": 150,
+      "schema_level": "registry_verified",
+      "tasks": [
+        "multiclass_classification"
+      ]
+    },
+    "violations": []
+  },
+  {
+    "http": 200,
+    "scenario": "huggingface_link_mnist",
+    "status": "passed",
+    "summary": {
+      "alternatives": 0,
+      "best_target": "label",
+      "columns": 2,
+      "mode": "external_metadata",
+      "resolution": "resolved",
+      "rows": 70000,
+      "schema_level": "registry_verified",
+      "tasks": [
+        "multiclass_classification"
+      ]
+    },
+    "violations": []
+  },
+  {
+    "http": 200,
+    "scenario": "kaggle_link_titanic",
+    "status": "passed",
+    "summary": {
+      "alternatives": 0,
+      "best_target": null,
+      "columns": null,
+      "mode": "external_metadata",
+      "resolution": "resolved",
+      "rows": null,
+      "schema_level": "unknown",
+      "tasks": []
+    },
+    "violations": []
+  },
+  {
+    "http": 200,
+    "scenario": "message_names_dataset",
+    "status": "passed",
+    "summary": {
+      "alternatives": 5,
+      "best_target": null,
+      "columns": null,
+      "mode": "external_metadata",
+      "resolution": "probable",
+      "rows": null,
+      "schema_level": "unknown",
+      "tasks": []
+    },
+    "violations": []
+  },
+  {
+    "http": 200,
+    "scenario": "ambiguous_name",
+    "status": "passed",
+    "summary": {
+      "alternatives": 0,
+      "best_target": null,
+      "columns": null,
+      "mode": "external_metadata",
+      "resolution": "ambiguous",
+      "rows": null,
+      "schema_level": "unknown",
+      "tasks": []
+    },
+    "violations": []
+  },
+  {
+    "http": 200,
+    "scenario": "fake_name",
+    "status": "passed",
+    "summary": {
+      "alternatives": 0,
+      "best_target": null,
+      "columns": null,
+      "mode": "external_metadata",
+      "resolution": "unresolved",
+      "rows": null,
+      "schema_level": "unknown",
+      "tasks": []
+    },
+    "violations": []
+  },
+  {
+    "http": 200,
+    "scenario": "uploaded_file_churn",
+    "status": "passed",
+    "summary": {
+      "alternatives": 0,
+      "best_target": "churn",
+      "columns": 7,
+      "mode": "file_parsed",
+      "resolution": "not_applicable",
+      "rows": 600,
+      "schema_level": "datapilot_parsed",
+      "tasks": [
+        "binary_classification",
+        "clustering"
+      ]
+    },
+    "violations": []
+  },
+  {
+    "http": 200,
+    "scenario": "assist_upload",
+    "status": "passed",
+    "summary": {
+      "alternatives": 0,
+      "best_target": "churn",
+      "columns": 7,
+      "mode": "file_parsed",
+      "resolution": "not_applicable",
+      "rows": 600,
+      "schema_level": "datapilot_parsed",
+      "tasks": [
+        "binary_classification",
+        "clustering"
+      ]
+    },
+    "violations": []
+  }
+]
