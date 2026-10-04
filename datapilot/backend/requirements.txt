@@ -6,6 +6,13 @@ google-genai>=1.0.0,<2.0.0
 python-dotenv>=1.0.0,<2.0.0
 httpx>=0.27.0,<1.0.0
 
+# Phase 4/5: dataset analysis (all imported lazily, so User A startup is unaffected)
+python-multipart>=0.0.9,<1.0.0   # multipart file upload
+pandas>=2.2.0,<3.0.0
+numpy>=2.0.0,<3.0.0
+scikit-learn>=1.5.0,<2.0.0       # mutual information, permutation importance
+openpyxl>=3.1.0,<4.0.0           # .xlsx, read-only, cached values only
+
 # Testing
 pytest>=8.0.0,<9.0.0
 pytest-asyncio>=0.24.0,<1.0.0

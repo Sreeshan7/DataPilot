@@ -66,6 +66,78 @@ class Settings(BaseSettings):
     huggingface_request_timeout: float = 20.0
     huggingface_max_limit: int = 50
 
+    # --- Phase 4: analysing a dataset the user already has -------------------
+    # Every limit exists to keep one request from exhausting memory or time. They
+    # are settings, not constants, so a deployment can trade capacity for safety.
+    #
+    # 25 MiB: pandas holds one Python object per cell, so peak parse memory is
+    # roughly ten times the file size; this keeps a worst-case upload in the low
+    # hundreds of MB.
+    analysis_max_upload_bytes: int = 25 * 1024 * 1024
+    # Rows/columns/cells actually analysed. A file beyond them is truncated and the
+    # analysis says so; it is never silently treated as complete.
+    analysis_max_rows: int = 200_000
+    analysis_max_columns: int = 500
+    # rows x columns. Bounds memory independently of file size (a file of one-character
+    # cells packs far more cells per byte than a typical one).
+    analysis_max_cells: int = 2_000_000
+    analysis_max_excel_sheets: int = 20
+    # An .xlsx is a zip. These two stop a small upload that expands enormously
+    # (a "zip bomb") before any of it is parsed.
+    analysis_max_excel_uncompressed_bytes: int = 200 * 1024 * 1024
+    analysis_max_excel_compression_ratio: int = 100
+    # csv.field_size_limit: stops a single runaway cell from consuming memory.
+    analysis_max_field_chars: int = 32_768
+    # Rows used for the expensive analyses (duplicate detection, association); a
+    # fixed seed makes the sample, and so every result, reproducible.
+    analysis_sample_rows: int = 20_000
+    analysis_random_seed: int = 42
+    # Wall-clock budget for one analysis, checked between stages.
+    analysis_time_limit_seconds: float = 30.0
+
+    # Quality / target thresholds. Each is a rule of thumb, stated here so it can be
+    # challenged, and reported alongside any finding that uses it.
+    #  - 0.40 missing: beyond this, imputation is rarely trustworthy.
+    quality_high_missing_ratio: float = 0.40
+    #  - 0.99 share for one value: the column carries almost no information.
+    quality_near_constant_ratio: float = 0.99
+    #  - 0.98 distinct values per row: indistinguishable from a row identifier.
+    quality_identifier_unique_ratio: float = 0.98
+    #  - Tukey's 1.5 x IQR fences, the conventional "possible outlier" rule.
+    quality_outlier_iqr_multiplier: float = 1.5
+    #  - minority class below 10% of rows is usually worth handling explicitly.
+    quality_imbalance_minority_ratio: float = 0.10
+    #  - a single feature this predictive of the target is a leakage signal, not a find.
+    quality_leakage_association: float = 0.98
+    #  - below this many rows a supervised task cannot be validated meaningfully.
+    task_min_rows_supervised: int = 30
+    #  - a target with more distinct values than this is treated as continuous.
+    task_max_classes: int = 20
+
+    # --- Phase 4: external dataset research (metadata only, never the data) ---
+    external_enabled: bool = True
+    external_request_timeout: float = 15.0
+    # Responses are streamed and cut off here; a registry record is a few KB, so a
+    # larger body is hostile or broken.
+    external_max_response_bytes: int = 2 * 1024 * 1024
+    external_max_redirects: int = 3
+    uci_api_base_url: str = "https://archive.ics.uci.edu/api"
+    openml_api_base_url: str = "https://www.openml.org/api/v1/json"
+
+    # --- Phase 5: dataset -> project intelligence ----------------------------
+    # Importance is estimated on a bounded, seeded sample so it cannot hang on a
+    # large file; the sample size is reported with the result.
+    importance_max_rows: int = 5_000
+    importance_max_features: int = 40
+    importance_n_repeats: int = 5
+    importance_n_estimators: int = 100
+    importance_test_fraction: float = 0.25
+    # One structured Gemini call per analysis, for phrasing and ideation only. The
+    # deterministic result is always produced first and is returned unchanged if the
+    # call is disabled, unavailable or rejected.
+    analysis_gemini_enabled: bool = True
+    analysis_gemini_max_columns: int = 60
+
     # --- Phase 2: deterministic ranking weights ----------------------------
     # Three groups, and the split is the point: requirement factors own 70 of the
     # 100 points, publisher-side signals own 15, trust owns 15. Relevance
