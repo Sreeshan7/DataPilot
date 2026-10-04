@@ -60,6 +60,10 @@ _STATUS_MAP: dict[str, int] = {
     "KAGGLE_UNAVAILABLE": 502,
     "KAGGLE_INVALID_RESPONSE": 502,
     "KAGGLE_NOT_FOUND": 404,
+    "HUGGINGFACE_RATE_LIMITED": 429,
+    "HUGGINGFACE_TIMEOUT": 504,
+    "HUGGINGFACE_UNAVAILABLE": 502,
+    "HUGGINGFACE_INVALID_RESPONSE": 502,
     "DATASET_SOURCE_INVALID_ID": 422,
     "DATASET_SOURCE_UNSUPPORTED_OPERATION": 501,
     "DATASET_DISCOVERY_LLM_UNAVAILABLE": 502,
@@ -91,6 +95,10 @@ _PUBLIC_CODE_MAP: dict[str, ErrorCode] = {
     "KAGGLE_UNAVAILABLE": ErrorCode.DATASET_SOURCE_UNAVAILABLE,
     "KAGGLE_INVALID_RESPONSE": ErrorCode.DATASET_INVALID_RESPONSE,
     "KAGGLE_NOT_FOUND": ErrorCode.DATASET_INVALID_RESPONSE,
+    "HUGGINGFACE_RATE_LIMITED": ErrorCode.DATASET_RATE_LIMITED,
+    "HUGGINGFACE_TIMEOUT": ErrorCode.DATASET_SOURCE_TIMEOUT,
+    "HUGGINGFACE_UNAVAILABLE": ErrorCode.DATASET_SOURCE_UNAVAILABLE,
+    "HUGGINGFACE_INVALID_RESPONSE": ErrorCode.DATASET_INVALID_RESPONSE,
     "DATASET_DISCOVERY_LLM_INVALID_RESPONSE": ErrorCode.DATASET_INVALID_RESPONSE,
     "LLM_INVALID_RESPONSE": ErrorCode.DATASET_INVALID_RESPONSE,
     "DATASET_SOURCE_INVALID_ID": ErrorCode.DATASET_QUERY_REQUIRED,
@@ -133,7 +141,7 @@ def _error(request_id: str, exc: DatasetSourceError | LLMServiceError) -> HTTPEx
     status_code=200,
     summary="Search for datasets",
     description=(
-        "Searches the configured external dataset sources (currently Kaggle) "
+        "Searches the configured external dataset sources (Kaggle and Hugging Face) "
         "for dataset metadata matching a free-text query. Metadata discovery "
         "only: no dataset is downloaded.\n\n"
         "Results carry `source_type=verified_external` and "

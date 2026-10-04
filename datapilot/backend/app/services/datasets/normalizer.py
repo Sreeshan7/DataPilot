@@ -488,6 +488,201 @@ def apply_kaggle_detail(
 
 
 # ---------------------------------------------------------------------------
+# Hugging Face
+# ---------------------------------------------------------------------------
+
+#: Hub tag namespaces that describe packaging or provenance, not the subject.
+_HF_NON_TOPIC_PREFIXES = (
+    "annotations_creators:",
+    "arxiv:",
+    "doi:",
+    "format:",
+    "language:",
+    "language_creators:",
+    "language_details:",
+    "library:",
+    "license:",
+    "modality:",
+    "multilinguality:",
+    "region:",
+    "size_categories:",
+    "source_datasets:",
+    "task_categories:",
+    "task_ids:",
+)
+
+#: Longest column list kept; the registry's own list may be far longer.
+MAX_COLUMNS = 200
+
+
+def _hf_tag_values(tags: list[str], prefix: str) -> list[str]:
+    return [t[len(prefix):] for t in tags if t.startswith(prefix) and len(t) > len(prefix)]
+
+
+def _hf_words(value: str) -> str:
+    return " ".join(value.replace("_", " ").replace("-", " ").split())
+
+
+def _hf_as_list(value: Any) -> list[str]:
+    if isinstance(value, str):
+        return [value]
+    if isinstance(value, list):
+        return [v for v in value if isinstance(v, str)]
+    return []
+
+
+def _hf_columns(card: dict) -> list[str]:
+    """Column names from ``cardData.dataset_info.features``, in published order.
+
+    ``dataset_info`` is written by the Hub's own tooling from the data files, so a
+    column list found there is a structured schema, not prose. A dataset whose card
+    has none yields an empty list, never a guess.
+    """
+    info = card.get("dataset_info")
+    infos = info if isinstance(info, list) else [info]
+    names: list[str] = []
+    for entry in infos:
+        if not isinstance(entry, dict):
+            continue
+        for feature in entry.get("features") or []:
+            if isinstance(feature, dict):
+                name = normalize_text(feature.get("name"))
+                if name and name not in names:
+                    names.append(name)
+    return names[:MAX_COLUMNS]
+
+
+def _hf_dataset_size(card: dict) -> Optional[int]:
+    info = card.get("dataset_info")
+    infos = info if isinstance(info, list) else [info]
+    for entry in infos:
+        if isinstance(entry, dict):
+            size = coerce_int(entry.get("dataset_size"))
+            if size:
+                return size
+    return None
+
+
+def normalize_huggingface_record(
+    raw: Any, known_domains: Optional[set[str]] = None
+) -> Optional[DatasetCandidate]:
+    """Convert one Hugging Face ``/api/datasets`` row into a DatasetCandidate.
+
+    Everything here is read from the Hub's own record: task categories become
+    ``task_types``, ``format:`` tags become file extensions, ``modality:`` tags
+    become published modalities, and a structured column list (when the card has
+    one) becomes ``columns`` and a ``columns: ...`` feature description that the
+    ranker already treats as a declared schema. Private or disabled datasets are
+    skipped. Nothing is inferred beyond the topic domain, which DataPilot derives.
+    """
+    if not isinstance(raw, dict):
+        return None
+    if raw.get("private") or raw.get("disabled"):
+        return None
+    dataset_id = normalize_text(raw.get("id"))
+    if not dataset_id:
+        return None
+
+    card = raw.get("cardData") if isinstance(raw.get("cardData"), dict) else {}
+    tags = [t for t in raw.get("tags", []) if isinstance(t, str)]
+
+    pretty = normalize_text(card.get("pretty_name"))
+    name = pretty or _hf_words(dataset_id.split("/")[-1]) or dataset_id
+
+    description = normalize_text(raw.get("description"))
+    if description:
+        description = description[:MAX_DESCRIPTION_CHARS]
+
+    topical = [
+        _hf_words(t)
+        for t in [*tags, *_hf_as_list(card.get("tags"))]
+        if t and not t.startswith(_HF_NON_TOPIC_PREFIXES)
+    ]
+    topical = list(dict.fromkeys(t for t in topical if t))[:20]
+
+    task_types = list(
+        dict.fromkeys(
+            _hf_words(t)
+            for t in (
+                _hf_tag_values(tags, "task_categories:")
+                + _hf_tag_values(tags, "task_ids:")
+                + _hf_as_list(card.get("task_categories"))
+            )
+            if t
+        )
+    )
+
+    file_types = []
+    for fmt in _hf_tag_values(tags, "format:"):
+        ext = "." + fmt.strip().lower()
+        if len(ext) > 1 and ext not in file_types:
+            file_types.append(ext)
+
+    modalities = list(
+        dict.fromkeys(_hf_words(m).lower() for m in _hf_tag_values(tags, "modality:") if m)
+    )
+
+    license_text = normalize_text((_hf_tag_values(tags, "license:") or [None])[0]) or normalize_text(
+        (_hf_as_list(card.get("license")) or [None])[0]
+    )
+
+    columns = _hf_columns(card)
+    feature_description = f"columns: {', '.join(columns)}" if columns else None
+
+    domain = infer_domain_from_tags(topical, known_domains) or infer_domain_from_text(
+        " ".join(p for p in (name, description or "") if p), known_domains
+    )
+
+    return _with_evidence(
+        DatasetCandidate(
+            id=f"huggingface:{dataset_id}",
+            name=name,
+            source="huggingface",
+            source_type=SourceType.VERIFIED_EXTERNAL,
+            source_id=dataset_id,
+            verification_status=VerificationStatus.VERIFIED,
+            url=f"https://huggingface.co/datasets/{dataset_id}",
+            description=description,
+            owner=normalize_text(raw.get("author")) or (
+                dataset_id.split("/")[0] if "/" in dataset_id else None
+            ),
+            tags=topical,
+            domain=domain,
+            task_types=task_types,
+            feature_description=feature_description,
+            license=license_text,
+            updated_at=parse_timestamp(raw.get("lastModified")),
+            created_at=parse_timestamp(raw.get("createdAt")),
+            size_bytes=_hf_dataset_size(card),
+            file_types=file_types,
+            modalities=modalities,
+            columns=columns,
+            download_count=coerce_int(raw.get("downloads")),
+            vote_count=coerce_int(raw.get("likes")),
+            usability=None,
+            # The search response already carries the dataset card, so there is no
+            # deeper per-dataset record to fetch.
+            metadata_depth=MetadataDepth.DETAILED,
+        )
+    )
+
+
+def normalize_huggingface_records(
+    raw_items: Any, known_domains: Optional[set[str]] = None
+) -> list[DatasetCandidate]:
+    """Normalize a Hugging Face search response, skipping unusable rows."""
+    if not isinstance(raw_items, list):
+        logger.warning(
+            "Hugging Face returned %s instead of a list; returning no candidates",
+            type(raw_items).__name__,
+        )
+        return []
+    out = [c for c in (normalize_huggingface_record(i, known_domains) for i in raw_items) if c]
+    logger.debug("Normalized %d/%d Hugging Face records", len(out), len(raw_items))
+    return out
+
+
+# ---------------------------------------------------------------------------
 # GenAI
 # ---------------------------------------------------------------------------
 

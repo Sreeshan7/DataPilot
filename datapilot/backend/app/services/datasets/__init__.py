@@ -4,6 +4,7 @@ Public surface:
 
 * :class:`DatasetSource` - the interface every discovery source implements.
 * :class:`KaggleDatasetSource` - real, externally verified Kaggle datasets.
+* :class:`HuggingFaceDatasetSource` - real, externally verified Hugging Face datasets.
 * :class:`GenAIDatasetSource` - unverified candidate suggestions from Gemini.
 * :class:`DatasetDiscoveryService` - the orchestrator.
 * :func:`build_default_sources` - the source registry.
@@ -25,6 +26,7 @@ from app.services.datasets.discovery import (
     DatasetDiscoveryService,
 )
 from app.services.datasets.genai_source import GenAIDatasetSource
+from app.services.datasets.huggingface_source import HuggingFaceDatasetSource
 from app.services.datasets.kaggle_source import KaggleDatasetSource
 from app.services.datasets.ranking import DatasetRankingEngine, build_project_profile
 
@@ -36,6 +38,7 @@ __all__ = [
     "DatasetSource",
     "DatasetSourceError",
     "GenAIDatasetSource",
+    "HuggingFaceDatasetSource",
     "KaggleDatasetSource",
     "build_default_sources",
     "build_project_profile",
@@ -57,12 +60,15 @@ def build_default_sources(
     if kaggle.is_enabled:
         sources.append(kaggle)
 
+    huggingface = HuggingFaceDatasetSource(settings)
+    if huggingface.is_enabled:
+        sources.append(huggingface)
+
     genai = GenAIDatasetSource(settings)
     if genai.is_enabled:
         sources.append(genai)
 
     # Future extension points, intentionally not implemented yet:
-    #   HuggingFaceDatasetSource   -> verified_external
     #   UCIDatasetSource            -> verified_external
     #   GovernmentDatasetSource     -> verified_external
     #   GitHubDatasetSource         -> verified_external

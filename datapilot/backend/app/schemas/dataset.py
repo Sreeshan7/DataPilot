@@ -388,6 +388,19 @@ class DatasetCandidate(BaseModel):
     file_names: list[str] = Field(
         default_factory=list, description="Published file names (capped), when known."
     )
+    modalities: list[str] = Field(
+        default_factory=list,
+        description="Data modalities the registry itself labels the dataset with.",
+    )
+    columns: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Column names from a structured schema the registry published (for "
+            "example Hugging Face's dataset_info.features). Empty when the "
+            "registry published none; prose that merely mentions columns is NOT "
+            "recorded here."
+        ),
+    )
     metadata_depth: MetadataDepth = Field(
         MetadataDepth.LISTING,
         description="Whether the registry's per-dataset record was read, or only its listing.",
@@ -537,6 +550,9 @@ class DatasetCandidate(BaseModel):
             primary.tags = _merge_unique(primary.tags + secondary.tags)
             primary.file_types = _merge_unique(primary.file_types + secondary.file_types)
             primary.file_names = _merge_unique(primary.file_names + secondary.file_names)
+            primary.modalities = _merge_unique(primary.modalities + secondary.modalities)
+            if not primary.columns:
+                primary.columns = list(secondary.columns)
             primary.task_types = _merge_unique(primary.task_types + secondary.task_types)
 
         # Advisory fields describe the model's opinion of the project, not the

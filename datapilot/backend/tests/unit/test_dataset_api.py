@@ -191,6 +191,10 @@ class TestSearchErrorMapping:
             ("KAGGLE_TIMEOUT", 504),
             ("KAGGLE_UNAVAILABLE", 502),
             ("KAGGLE_INVALID_RESPONSE", 502),
+            ("HUGGINGFACE_RATE_LIMITED", 429),
+            ("HUGGINGFACE_TIMEOUT", 504),
+            ("HUGGINGFACE_UNAVAILABLE", 502),
+            ("HUGGINGFACE_INVALID_RESPONSE", 502),
             ("MADE_UP_CODE", 502),
         ],
     )

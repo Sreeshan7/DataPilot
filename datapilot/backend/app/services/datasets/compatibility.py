@@ -115,7 +115,20 @@ def _project_modalities(data_type_notes: Sequence[str]) -> frozenset[str]:
 
 
 def _candidate_modalities(candidate: DatasetCandidate) -> frozenset[str]:
-    """Modalities the candidate's published file types actually prove."""
+    """Modalities the candidate's published metadata actually proves.
+
+    A modality the registry states outright (Hugging Face's ``modality:image``)
+    outranks one guessed from a file extension: image datasets are routinely stored
+    as ``.parquet``, a container format that would otherwise read as "tabular".
+    Extensions are only consulted when the registry labelled no modality.
+    """
+    stated = {
+        label.strip().lower()
+        for label in candidate.modalities
+        if label.strip().lower() in _MODALITY_WORDS
+    }
+    if stated:
+        return frozenset(stated)
     out: set[str] = set()
     for name in candidate.file_types:
         ext = ("." + name.rsplit(".", 1)[-1].lower()) if "." in name else ""

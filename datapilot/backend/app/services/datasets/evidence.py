@@ -55,6 +55,9 @@ DERIVED_FIELDS: frozenset[str] = frozenset({"domain"})
 # "this registry does not publish that" instead of implying a gap in the record.
 SOURCE_UNPUBLISHED_FIELDS: dict[str, frozenset[str]] = {
     "kaggle": frozenset({"target_description", "feature_description", "task_types"}),
+    # Hugging Face publishes task categories and (for some datasets) a column
+    # schema, but no statement of what the label is.
+    "huggingface": frozenset({"target_description"}),
 }
 
 

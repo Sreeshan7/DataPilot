@@ -209,21 +209,58 @@ def _evidence_claims(candidate: DatasetCandidate) -> list[EvidenceClaim]:
                 source=candidate.source if layer is not EvidenceLayer.UNKNOWN else "none",
             )
         )
+    if candidate.columns:
+        # A structured column list the registry published. It is the only thing in
+        # this record that is machine-generated schema rather than prose, so it is
+        # the only thing allowed to carry the SCHEMA_VERIFIED layer - and only
+        # when a registry, not a model, published it.
+        shown = ", ".join(candidate.columns[:40]) + (
+            f" (+{len(candidate.columns) - 40} more)" if len(candidate.columns) > 40 else ""
+        )
+        claims.append(
+            EvidenceClaim(
+                subject="columns",
+                value=shown,
+                layer=(
+                    EvidenceLayer.SCHEMA_VERIFIED
+                    if _publishes(candidate)
+                    else EvidenceLayer.AI_SUGGESTED
+                ),
+                source=candidate.source,
+            )
+        )
+    for field, subject in (("file_types", "file_types"), ("modalities", "modalities")):
+        values = getattr(candidate, field)
+        if values:
+            claims.append(
+                EvidenceClaim(
+                    subject=subject,
+                    value=", ".join(sorted(values)),
+                    layer=_field_layer(candidate, field),
+                    source=candidate.source,
+                )
+            )
     return claims
 
 
 def _schema_state(candidate: DatasetCandidate) -> SchemaState:
     """How much trustworthy schema information this candidate carries.
 
-    ``VERIFIED`` is unreachable in Phase 3A and that is deliberate: it requires
-    parsing the dataset, which is Phase 3B. Text that enumerates columns is
-    ``PARTIAL`` - good enough to prove a named feature absent, not good enough to
-    be called verified, because nobody checked it against the actual file.
+    ``VERIFIED`` requires a *structured* column list published by the registry
+    itself (Hugging Face's ``dataset_info.features``). DataPilot does not download
+    or parse dataset files, so ``VERIFIED`` means "the registry's own machine-made
+    schema", not "we read the file". Prose that enumerates columns is ``PARTIAL``:
+    it can show a feature is present, but a prose list may be incomplete, so it
+    cannot on its own settle a dataset's overall compatibility.
     """
     if not _publishes(candidate):
         # An AI candidate's prose is a model's guess about columns. It cannot
         # prove anything about absence, so it is not a schema at all.
         return SchemaState.UNKNOWN
+    if candidate.columns:
+        # The registry published a structured column list. That is a schema, not
+        # prose about one, so absence can be concluded from it.
+        return SchemaState.VERIFIED
     enumerates = _declares_schema(candidate.description) or _declares_schema(
         candidate.feature_description
     )
@@ -913,10 +950,12 @@ def _overall_level(
         or coverage.unknown_count > 0
         or schema_state is SchemaState.UNKNOWN
     )
-    blocking = (
-        target_state is TargetState.INCOMPATIBLE
-        or coverage.missing_count > 0
-    )
+    # A feature absent from a *structured* schema is a real gap. One absent from a
+    # prose column list is only "not named there", because such lists are often
+    # partial, so it keeps the dataset out of HIGH without condemning it as LOW.
+    structured_gap = coverage.missing_count > 0 and schema_state is SchemaState.VERIFIED
+    undecidable = undecidable or (coverage.missing_count > 0 and not structured_gap)
+    blocking = target_state is TargetState.INCOMPATIBLE or structured_gap
     if not undecidable and not blocking:
         return CompatibilityLevel.HIGH
     if coverage.required_count == 0 and target_state is TargetState.UNKNOWN:
@@ -1026,7 +1065,13 @@ def _risks(
         add(
             RiskCategory.FEATURE_MISSING,
             RiskSeverity.WARNING,
-            f"The required feature {feature.requirement!r} is absent from the published schema.",
+            (
+                f"The required feature {feature.requirement!r} is absent from the "
+                "registry's published schema."
+                if schema_state is SchemaState.VERIFIED
+                else f"The required feature {feature.requirement!r} is not named in the "
+                "dataset's own column description, which may be incomplete."
+            ),
             subject=feature.requirement,
             risk_layer=feature.layer,
         )
