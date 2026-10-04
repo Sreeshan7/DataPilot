@@ -277,3 +277,66 @@ class TestAlternativesWithinADimension:
             )
             assert intel.compatibility.task is expect
             assert bool(intel.compatibility.contradictions) is (expect is MatchStatus.MISMATCH)
+
+
+# ---------------------------------------------------------------------------
+# Regression (found by the live end-to-end run): a generic word is not a modality
+# ---------------------------------------------------------------------------
+
+
+class TestProjectModalitiesMatchWholePhrases:
+    """"image data" used to be matched on its token "data", so any note containing
+    the word "data" was read as requiring *image* data, and every tabular dataset
+    was reported as contradicting a project about network flow data."""
+
+    @pytest.mark.parametrize(
+        "note",
+        [
+            "Likely time-series or sequential network flow data.",
+            "inferred Network traffic data",
+            "customer data",
+            "sensor readings over time",
+            "",
+        ],
+    )
+    def test_a_generic_data_note_names_no_modality(self, note):
+        from app.services.datasets.compatibility import _project_modalities
+
+        assert _project_modalities([note]) == frozenset()
+
+    @pytest.mark.parametrize(
+        ("note", "expected"),
+        [
+            ("image data", {"image"}),
+            ("labelled images of chest x-rays", {"image"}),
+            ("tabular records", {"tabular"}),
+            ("a spreadsheet of marks", {"tabular"}),
+            ("speech recordings", {"audio"}),
+            ("short video clips", {"video"}),
+            ("text documents", {"text"}),
+            ("tabular data and text documents", {"tabular", "text"}),
+        ],
+    )
+    def test_a_stated_modality_is_recognised(self, note, expected):
+        from app.services.datasets.compatibility import _project_modalities
+
+        assert _project_modalities([note]) == frozenset(expected)
+
+    def test_structured_is_not_found_inside_unstructured(self):
+        from app.services.datasets.compatibility import _project_modalities
+
+        assert "tabular" not in _project_modalities(["unstructured text documents"])
+        assert "text" in _project_modalities(["unstructured text documents"])
+
+    def test_a_tabular_dataset_does_not_contradict_a_network_flow_project(self):
+        candidate = make_candidate(file_types=[".csv"], file_names=["flows.csv"])
+        req = make_requirements(data_types=["Likely time-series or sequential network flow data."])
+        intel = _intel(candidate, req)
+        assert intel.compatibility.contradictions == []
+        assert intel.compatibility.data_type is not MatchStatus.MISMATCH
+        assert "data_type" not in intel.compatibility.unknown_dimensions
+
+    def test_a_real_image_requirement_still_contradicts_tabular_files(self):
+        candidate = make_candidate(file_types=[".csv"], file_names=["marks.csv"])
+        intel = _intel(candidate, make_requirements(data_types=["image data of x-rays"]))
+        assert intel.compatibility.data_type is MatchStatus.MISMATCH

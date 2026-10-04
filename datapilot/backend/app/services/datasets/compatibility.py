@@ -103,13 +103,20 @@ def _task_overlap(project_tasks: Sequence[str], candidate_tasks: Sequence[str]) 
 
 
 def _project_modalities(data_type_notes: Sequence[str]) -> frozenset[str]:
+    """Modalities a project's data-type statements name.
+
+    Whole words and phrases only. Matching on shared tokens turned the phrase
+    "image data" into the bare word "data", so a note such as "likely time-series
+    network flow data" was read as requiring *image* data and every tabular dataset
+    was reported as contradicting it. A modality is named only when one of its
+    phrases appears as written, on word boundaries ("structured" is not found inside
+    "unstructured").
+    """
     out: set[str] = set()
     for note in data_type_notes:
-        tokens = _tokens(note)
+        text = f" {' '.join(_PUNCT.sub(' ', note.lower()).split())} "
         for modality, words in _MODALITY_WORDS.items():
-            if any(word in note.lower() for word in words) or (
-                tokens & _tokens(" ".join(sorted(words)))
-            ):
+            if any(f" {' '.join(w.split())} " in text for w in words):
                 out.add(modality)
     return frozenset(out)
 
