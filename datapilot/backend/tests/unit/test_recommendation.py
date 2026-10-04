@@ -192,6 +192,7 @@ class TestOutcome:
         ranked, _, _, final = _full([_transport(), _strong()])
         if final.best_match.rank > 1:
             assert any("passed over" in c for c in final.caveats)
+            assert any("found incompatible, unconfirmed, or less certain" in c for c in final.caveats)
 
     def test_a_verified_dataset_with_low_confidence_is_tentative(self):
         bare = make_candidate(
@@ -322,6 +323,35 @@ class TestAlternatives:
         _, _, _, final = _full([_strong(), _transport()])
         assert final.margin_to_next is None
         assert final.close_call is False
+
+    def test_a_close_call_goes_to_the_dataset_we_can_stand_behind_more(self):
+        """Identical evidence, but only one record was read in detail: the scores tie,
+        so the higher-confidence one must win even though it ranks second."""
+        listing = _strong(name="Student Alpha", source_id="o/a", metadata_depth=MetadataDepth.LISTING)
+        detailed = _strong(name="Student Beta", source_id="o/b")
+        ranked, _, conf, final = _full([listing, detailed])
+        assert [c.name for c in ranked] == ["Student Alpha", "Student Beta"]
+        assert conf[0].level is ConfidenceLevel.MEDIUM and conf[1].level is ConfidenceLevel.HIGH
+        assert final.best_match.name == "Student Beta"
+        assert final.best_match.rank == 2
+        assert any("1 higher-ranked candidate was passed over" in c for c in final.caveats)
+
+    def test_outside_the_band_the_ranking_decides_even_against_confidence(self):
+        top = _strong(name="Student Alpha", source_id="o/a", metadata_depth=MetadataDepth.LISTING)
+        far_behind = make_candidate(
+            name="Student Gamma", source_id="o/g", description="Student marks",
+            target_description=None, tags=["education"], usability=0.1, vote_count=1, download_count=1,
+            metadata_depth=MetadataDepth.DETAILED,
+        )
+        ranked, _, _, final = _full([top, far_behind])
+        gap = ranked[0].ranking_score - ranked[1].ranking_score
+        assert gap >= CLOSE_CALL_MARGIN
+        assert final.best_match.name == "Student Alpha"
+
+    def test_the_tie_break_never_promotes_an_unconfirmed_or_incompatible_dataset(self):
+        _, _, _, final = _full([_ai(), _transport(), _strong(metadata_depth=MetadataDepth.LISTING)])
+        assert final.best_match.source_type is SourceType.VERIFIED_EXTERNAL
+        assert final.best_match.compatibility is not CompatibilityLevel.LOW
 
     def test_the_margin_threshold_is_just_under_the_measured_smallest_gap(self):
         assert CLOSE_CALL_MARGIN < 5.33

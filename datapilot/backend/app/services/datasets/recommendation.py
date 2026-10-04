@@ -230,7 +230,21 @@ def build_final_recommendation(
     # A registry-confirmed dataset is always preferred to an unconfirmed one that
     # happens to rank a few points higher: confirmed existence is the one thing an
     # AI suggestion cannot offer.
-    chosen = (verified or eligible or [None])[0]
+    #
+    # Among confirmed datasets, scores closer than CLOSE_CALL_MARGIN are not a real
+    # lead (see that constant), so inside that band the dataset we can stand behind
+    # more wins: highest confidence first, then best rank. Outside the band the
+    # ranking decides, exactly as before.
+    if verified:
+        top_score = float(verified[0][1].ranking_score or 0.0)
+        near = [
+            row
+            for row in verified
+            if top_score - float(row[1].ranking_score or 0.0) < CLOSE_CALL_MARGIN
+        ]
+        chosen = max(near, key=lambda row: (_LEVEL_ORDER[row[3].level], -row[0]))
+    else:
+        chosen = (eligible or [None])[0]
 
     if chosen is None:
         closest = rows[0]
@@ -296,9 +310,11 @@ def build_final_recommendation(
             "model's description and has not been checked against any registry."
         )
     if rank > 1:
+        passed_over = rank - 1
         caveats.append(
-            f"Ranked #{rank}: higher-ranked candidates were passed over because they "
-            "were found incompatible or are unconfirmed."
+            f"Ranked #{rank}: {passed_over} higher-ranked "
+            f"{'candidate was' if passed_over == 1 else 'candidates were'} passed over "
+            "because found incompatible, unconfirmed, or less certain to suit the project."
         )
 
     alternatives = [
