@@ -57,6 +57,29 @@ def internal_error(request_id: str) -> HTTPException:
     )
 
 
+async def execute_analysis(request_id: str, request: AnalysisRequest) -> DatasetAnalysisResponse:
+    """Run the User B workflow and package it (also used by /assist). Does not close the upload."""
+    try:
+        outcome = await get_analysis_service().analyze(request)
+    except AnalysisError as exc:
+        raise error_response(request_id, exc) from exc
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("[%s] Unhandled dataset analysis error: %s", request_id, type(exc).__name__)
+        raise internal_error(request_id) from exc
+
+    analysis = outcome.analysis
+    return DatasetAnalysisResponse(
+        request_id=request_id,
+        headline=narrative.headline(analysis),
+        evidence_statement=narrative.evidence_statement(analysis),
+        analysis=analysis,
+        recommended_next_step=narrative.next_step(analysis),
+        next_actions=narrative.next_actions(analysis),
+    )
+
+
 @router.post(
     "/analyze",
     response_model=DatasetAnalysisResponse,
@@ -108,24 +131,7 @@ async def analyze_dataset(
         sheet_name=sheet_name,
     )
     try:
-        outcome = await get_analysis_service().analyze(request)
-    except AnalysisError as exc:
-        raise error_response(request_id, exc) from exc
-    except HTTPException:
-        raise
-    except Exception as exc:
-        logger.error("[%s] Unhandled dataset analysis error: %s", request_id, type(exc).__name__)
-        raise internal_error(request_id) from exc
+        return await execute_analysis(request_id, request)
     finally:
         if file is not None:
             await file.close()
-
-    analysis = outcome.analysis
-    return DatasetAnalysisResponse(
-        request_id=request_id,
-        headline=narrative.headline(analysis),
-        evidence_statement=narrative.evidence_statement(analysis),
-        analysis=analysis,
-        recommended_next_step=narrative.next_step(analysis),
-        next_actions=narrative.next_actions(analysis),
-    )

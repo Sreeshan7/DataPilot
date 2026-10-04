@@ -118,6 +118,47 @@ def get_service() -> DatasetDiscoveryService:
     return _service
 
 
+def validate_description(request_id: str, description: Optional[str]) -> None:
+    """Raise the 422 the recommend workflow gives for a missing, empty or over-long description."""
+    if description is None:
+        raise HTTPException(
+            status_code=422,
+            detail=ErrorResponse(
+                request_id=request_id,
+                error=ErrorDetail(
+                    code=ErrorCode.PROJECT_DESCRIPTION_REQUIRED,
+                    message="Project description is required.",
+                ),
+            ).model_dump(),
+        )
+    if not description:
+        raise HTTPException(
+            status_code=422,
+            detail=ErrorResponse(
+                request_id=request_id,
+                error=ErrorDetail(
+                    code=ErrorCode.PROJECT_DESCRIPTION_EMPTY,
+                    message="Project description must not be empty.",
+                ),
+            ).model_dump(),
+        )
+    word_count = count_words(description)
+    if word_count > MAX_PROJECT_DESCRIPTION_WORDS:
+        raise HTTPException(
+            status_code=422,
+            detail=ErrorResponse(
+                request_id=request_id,
+                error=ErrorDetail(
+                    code=ErrorCode.PROJECT_DESCRIPTION_TOO_LONG,
+                    message=(
+                        f"Project description must be at most "
+                        f"{MAX_PROJECT_DESCRIPTION_WORDS} words; got {word_count}."
+                    ),
+                ),
+            ).model_dump(),
+        )
+
+
 def _error(request_id: str, exc: DatasetSourceError | LLMServiceError) -> HTTPException:
     status = _STATUS_MAP.get(exc.code, 502)
     code = _PUBLIC_CODE_MAP.get(exc.code)
@@ -257,49 +298,20 @@ async def recommend_datasets(
     request_id = str(uuid.uuid4())
     logger.info("[%s] POST /api/v1/datasets/recommend (limit=%s)", request_id, body.limit)
 
-    if body.description is None:
-        raise HTTPException(
-            status_code=422,
-            detail=ErrorResponse(
-                request_id=request_id,
-                error=ErrorDetail(
-                    code=ErrorCode.PROJECT_DESCRIPTION_REQUIRED,
-                    message="Project description is required.",
-                ),
-            ).model_dump(),
-        )
-    if not body.description:
-        raise HTTPException(
-            status_code=422,
-            detail=ErrorResponse(
-                request_id=request_id,
-                error=ErrorDetail(
-                    code=ErrorCode.PROJECT_DESCRIPTION_EMPTY,
-                    message="Project description must not be empty.",
-                ),
-            ).model_dump(),
-        )
-    word_count = count_words(body.description)
-    if word_count > MAX_PROJECT_DESCRIPTION_WORDS:
-        raise HTTPException(
-            status_code=422,
-            detail=ErrorResponse(
-                request_id=request_id,
-                error=ErrorDetail(
-                    code=ErrorCode.PROJECT_DESCRIPTION_TOO_LONG,
-                    message=(
-                        f"Project description must be at most "
-                        f"{MAX_PROJECT_DESCRIPTION_WORDS} words; got {word_count}."
-                    ),
-                ),
-            ).model_dump(),
-        )
+    return await execute_recommendation(request_id, body.description, body.limit)
+
+
+async def execute_recommendation(
+    request_id: str, description: Optional[str], limit: int
+) -> DatasetRecommendationResponse:
+    """Validate, discover, rank and package: the whole User A workflow (also used by /assist)."""
+    validate_description(request_id, description)
 
     service = get_service()
     try:
         requirements, result = await service.recommend(
-            description=body.description,
-            limit=body.limit,
+            description=description,
+            limit=limit,
             request_id=request_id,
         )
     except (DatasetSourceError, LLMServiceError) as exc:
@@ -319,6 +331,13 @@ async def recommend_datasets(
             ).model_dump(),
         ) from exc
 
+    return compose_recommendation_response(request_id, requirements, result, service)
+
+
+def compose_recommendation_response(
+    request_id: str, requirements: Any, result: Any, service: DatasetDiscoveryService
+) -> DatasetRecommendationResponse:
+    """Rank, explain and package a discovery result (shared with the unified workflow)."""
     intelligence = build_intelligence_report(result.candidates, requirements)
     confidences, final_recommendation = build_recommendations(result.candidates, intelligence)
     recommendations = [

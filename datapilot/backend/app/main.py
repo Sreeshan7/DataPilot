@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.api.middleware import BodySizeLimitMiddleware
+from app.api.v1.assist import router as assist_router
 from app.api.v1.dataset_analysis import router as dataset_analysis_router
 from app.api.v1.datasets import router as datasets_router
 from app.api.v1.intent import router as intent_router
@@ -73,13 +74,14 @@ def create_app() -> FastAPI:
     upload_limit = settings.analysis_max_upload_bytes + 256 * 1024  # form fields + multipart framing
     app.add_middleware(
         BodySizeLimitMiddleware,
-        limits={"/datasets/analyze": upload_limit},
+        limits={"/datasets/analyze": upload_limit, "/assist": upload_limit},
     )
 
     app.include_router(project_analysis_router, prefix=settings.api_v1_prefix)
     app.include_router(datasets_router, prefix=settings.api_v1_prefix)
     app.include_router(dataset_analysis_router, prefix=settings.api_v1_prefix)
     app.include_router(intent_router, prefix=settings.api_v1_prefix)
+    app.include_router(assist_router, prefix=settings.api_v1_prefix)
 
     @app.get("/health", response_model=HealthResponse, tags=["Health"])
     async def health_check() -> HealthResponse:
