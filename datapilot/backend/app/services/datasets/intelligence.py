@@ -33,6 +33,7 @@ from app.schemas.dataset import (
     RankingFactor,
     RankingFactorName,
     RequirementMatch,
+    MetadataDepth,
     SourceType,
     VerificationStatus,
 )
@@ -58,7 +59,11 @@ from app.schemas.intelligence import (
     TargetState,
     strongest_layer,
 )
-from app.services.datasets.compatibility import find_contradictions
+from app.services.datasets.compatibility import (
+    _candidate_modalities,
+    _project_modalities,
+    find_contradictions,
+)
 from app.services.datasets.ranking import (
     DatasetRankingEngine,
     _declares_schema,
@@ -725,6 +730,159 @@ def _dimension(
     )
 
 
+#: A project needs the time dimension when its own task, target or concepts say
+#: so. Plain words, not concept ids: this is about the project's wording.
+_TEMPORAL_PROJECT = re.compile(
+    r"\b(?:forecast\w*|time[- ]?series|temporal|sequence prediction|trend prediction)\b",
+    re.IGNORECASE,
+)
+
+#: Evidence in a dataset's own published text that it has a time axis. Deliberately
+#: specific: a bare "date" would match every "last updated" sentence.
+_TEMPORAL_EVIDENCE = re.compile(
+    r"\b(?:time[- ]?series|timestamps?|date[- ]?time|hourly|daily|weekly|monthly|"
+    r"quarterly|yearly|annual|historical|temporal|over time)\b",
+    re.IGNORECASE,
+)
+
+
+def _project_needs_temporal(profile) -> bool:
+    if profile is None:
+        return False
+    text = " ".join([*profile.task_terms, *profile.target_terms, *profile.concept_terms])
+    return bool(_TEMPORAL_PROJECT.search(text))
+
+
+def _data_type_dimension(
+    candidate: DatasetCandidate,
+    profile,
+    contradictions: Optional[dict[str, list[str]]] = None,
+) -> DimensionCompatibility:
+    """Data modality: the project's stated type against published file extensions.
+
+    Only published facts decide it. A file extension is something the registry
+    states about the dataset, so ``.csv`` against a "tabular" project is a MATCH and
+    ``.png`` only is a MISMATCH. Not knowing the files, or the project stating no
+    data type, is UNKNOWN: it is not a contradiction.
+    """
+    declared = (contradictions or {}).get("data_type") or []
+    if declared:
+        return DimensionCompatibility(
+            dimension="data_type",
+            status=MatchStatus.MISMATCH,
+            evidence=declared[0],
+            layer=EvidenceLayer.SOURCE_DECLARED,
+        )
+    required = _project_modalities(profile.data_type_notes) if profile else frozenset()
+    if not required:
+        return DimensionCompatibility(
+            dimension="data_type",
+            status=MatchStatus.UNKNOWN,
+            evidence="the project did not state a data type",
+            layer=EvidenceLayer.UNKNOWN,
+        )
+    offered = _candidate_modalities(candidate)
+    if not offered:
+        return DimensionCompatibility(
+            dimension="data_type",
+            status=MatchStatus.UNKNOWN,
+            evidence="no file types were published, so the data modality is unknown",
+            layer=EvidenceLayer.UNKNOWN,
+        )
+    if offered & required:
+        files = ", ".join(candidate.file_types) or ", ".join(candidate.file_names[:3])
+        # The wording follows the authority: a registry publishes files, a model
+        # only suggests them, and the sentence must not state a suggestion as fact.
+        verb = "publishes" if _publishes(candidate) else "is suggested by a model to have"
+        return DimensionCompatibility(
+            dimension="data_type",
+            status=MatchStatus.MATCH,
+            evidence=(
+                f"{verb} {', '.join(sorted(offered & required))} files ({files})"
+            ),
+            layer=(
+                EvidenceLayer.SOURCE_DECLARED
+                if _publishes(candidate)
+                else EvidenceLayer.AI_SUGGESTED
+            ),
+        )
+    # Published modality with no overlap. The contradiction detector reports it for
+    # a verified candidate; for an unverified one the file claim is a model's guess.
+    return DimensionCompatibility(
+        dimension="data_type",
+        status=MatchStatus.UNKNOWN,
+        evidence=(
+            f"the files suggest {', '.join(sorted(offered))} data, but a model "
+            "supplied that and it cannot be treated as a published fact"
+        ),
+        layer=EvidenceLayer.AI_SUGGESTED,
+    )
+
+
+def _temporal_dimension(candidate: DatasetCandidate, profile) -> Optional[DimensionCompatibility]:
+    """Whether a forecasting project can see a time axis in the dataset's own text.
+
+    ``None`` when the project has no temporal requirement, so a dimension nobody
+    asked about is never reported as unknown. Never MISMATCH: a dataset that does
+    not mention time has not said it lacks it.
+    """
+    if not _project_needs_temporal(profile):
+        return None
+    text = " ".join(
+        part
+        for part in (
+            candidate.name,
+            candidate.description,
+            " ".join(candidate.tags),
+            candidate.feature_description,
+            " ".join(candidate.file_names),
+        )
+        if part
+    )
+    found = _TEMPORAL_EVIDENCE.search(text)
+    if not found:
+        return DimensionCompatibility(
+            dimension="temporal",
+            status=MatchStatus.UNKNOWN,
+            evidence="nothing published says whether the data has a time axis",
+            layer=EvidenceLayer.UNKNOWN,
+        )
+    source = "the dataset's own text" if _publishes(candidate) else "a model's description"
+    return DimensionCompatibility(
+        dimension="temporal",
+        status=MatchStatus.MATCH,
+        evidence=f"{source} mentions {found.group(0)!r}",
+        layer=(
+            EvidenceLayer.SOURCE_DECLARED
+            if _publishes(candidate)
+            else EvidenceLayer.AI_SUGGESTED
+        ),
+    )
+
+
+def _required_dimensions(profile) -> frozenset[str]:
+    """Dimensions the project actually asked about.
+
+    Without requirements nothing can be told apart, so the three always-present
+    dimensions are assumed. A dimension the project never stated is never reported
+    as unknown: an unanswered question nobody asked is not a gap.
+    """
+    if profile is None:
+        return frozenset({"domain", "task", "target"})
+    required: set[str] = set()
+    if profile.project_domain_key or profile.domain_label:
+        required.add("domain")
+    if profile.task_terms:
+        required.add("task")
+    if profile.target_terms or profile.raw_target:
+        required.add("target")
+    if _project_modalities(profile.data_type_notes):
+        required.add("data_type")
+    if _project_needs_temporal(profile):
+        required.add("temporal")
+    return frozenset(required)
+
+
 def _overall_level(
     target_state: TargetState,
     coverage: FeatureCoverage,
@@ -931,6 +1089,16 @@ def _limitations(
             "verified either way.",
             EvidenceLayer.UNKNOWN,
         )
+    if (
+        candidate.source_type is SourceType.VERIFIED_EXTERNAL
+        and candidate.metadata_depth is MetadataDepth.LISTING
+    ):
+        add(
+            "listing_metadata_only",
+            "Only the registry's search listing was read, so the owner's full "
+            "description and file list were not considered.",
+            EvidenceLayer.UNKNOWN,
+        )
     if candidate.source_type is SourceType.AI_SUGGESTED:
         add(
             "ai_generated_candidate",
@@ -958,6 +1126,9 @@ def build_recommendation_explanation(
     task: DimensionCompatibility,
     risks: Sequence[DatasetRisk],
     limitations: Sequence[DatasetLimitation],
+    data_type: Optional[DimensionCompatibility] = None,
+    temporal: Optional[DimensionCompatibility] = None,
+    required: frozenset[str] = frozenset(),
 ) -> RecommendationExplanation:
     """Render the structured explanation from typed state.
 
@@ -991,10 +1162,36 @@ def build_recommendation_explanation(
         matches.append(f"Domain: {domain.evidence}")
     if task.status is MatchStatus.MATCH:
         matches.append(f"ML task: {task.evidence}")
+    for extra, label in ((data_type, "Data type"), (temporal, "Time dimension")):
+        if extra is not None and extra.status is MatchStatus.MATCH:
+            matches.append(f"{label}: {extra.evidence}")
+
+    coverage_lines = [f"Features: {coverage.summary()}"]
+    coverage_lines.append(
+        f"Target: {target_state.value}"
+        + (f" ({target.match_quality.value} match)" if target.match_quality else "")
+    )
+    for dimension, label in (
+        (domain, "Domain"),
+        (task, "ML task"),
+        (data_type, "Data type"),
+        (temporal, "Time dimension"),
+    ):
+        if dimension is None:
+            continue
+        if dimension.dimension in required or dimension.status is not MatchStatus.UNKNOWN:
+            coverage_lines.append(f"{label}: {dimension.status.value}")
 
     unknown = [f.detail for f in coverage.unknown]
     if target_state is TargetState.UNKNOWN:
         unknown.append(f"Target: nothing establishes whether {target_name} is available")
+    for extra, label in ((data_type, "Data type"), (temporal, "Time dimension")):
+        if (
+            extra is not None
+            and extra.dimension in required
+            and extra.status is MatchStatus.UNKNOWN
+        ):
+            unknown.append(f"{label}: {extra.evidence}")
 
     verified = [
         f"{f.requirement} ({f.state.value})"
@@ -1027,6 +1224,7 @@ def build_recommendation_explanation(
 
     return RecommendationExplanation(
         why_recommended=why,
+        requirement_coverage=coverage_lines,
         what_matches=matches,
         what_is_unknown=unknown,
         what_is_missing=[f.detail for f in coverage.missing],
@@ -1067,17 +1265,20 @@ def build_dataset_intelligence(
     )
     task = _dimension(candidate, RankingFactorName.TASK_MATCH, "task", by_dimension)
     target = _target_dimension(candidate, target_state_analysis, by_dimension)
-    data_type = _dimension(
-        candidate, RankingFactorName.COMPATIBILITY, "data_type", by_dimension
-    )
+    profile = build_project_profile(requirements) if requirements is not None else None
+    data_type = _data_type_dimension(candidate, profile, by_dimension)
+    temporal = _temporal_dimension(candidate, profile)
+    required = _required_dimensions(profile)
 
     compatibility_factor = _factor(candidate, RankingFactorName.COMPATIBILITY)
     contradictions = list(compatibility_factor.contradictions) if compatibility_factor else []
 
     unknown_dimensions = sorted(
         dimension.dimension
-        for dimension in (domain, task, data_type)
-        if dimension.status is MatchStatus.UNKNOWN
+        for dimension in (domain, task, target, data_type, temporal)
+        if dimension is not None
+        and dimension.dimension in required
+        and dimension.status is MatchStatus.UNKNOWN
     )
 
     overall = _overall_level(
@@ -1107,6 +1308,7 @@ def build_dataset_intelligence(
         task=task.status,
         target=target.status,
         data_type=data_type.status,
+        temporal=temporal.status if temporal is not None else None,
         feature_coverage=coverage,
         contradictions=sorted(contradictions),
         unknown_dimensions=unknown_dimensions,
@@ -1122,6 +1324,9 @@ def build_dataset_intelligence(
         task=task,
         risks=risks,
         limitations=limitations,
+        data_type=data_type,
+        temporal=temporal,
+        required=required,
     )
 
     # The record's own layer must not overstate its claims, so it is derived from

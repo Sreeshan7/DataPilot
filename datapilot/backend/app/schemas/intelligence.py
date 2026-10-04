@@ -326,6 +326,18 @@ class FeatureCoverage(BaseModel):
             raise ValueError(f"feature appears in more than one bucket: {duplicates}")
         return self
 
+    def summary(self) -> str:
+        """One sentence that keeps matched, unknown and missing apart.
+
+        Never "4/6": that would charge the unknown feature as if it were missing.
+        """
+        if self.required_count == 0:
+            return "no required features were identified"
+        return (
+            f"{self.required_count} required: {self.matched_count} matched, "
+            f"{self.unknown_count} unknown, {self.missing_count} missing"
+        )
+
     @property
     def matched_count(self) -> int:
         return len(self.matched)
@@ -403,6 +415,14 @@ class CompatibilityAssessment(BaseModel):
     task: MatchStatus
     target: MatchStatus
     data_type: MatchStatus = MatchStatus.UNKNOWN
+    temporal: Optional[MatchStatus] = Field(
+        None,
+        description=(
+            "Whether the dataset shows evidence of the time dimension a forecasting "
+            "project needs. None when the project has no temporal requirement. Only "
+            "ever MATCH or UNKNOWN: the absence of a time word is not a contradiction."
+        ),
+    )
     feature_coverage: FeatureCoverage
     contradictions: list[str] = Field(
         default_factory=list,
@@ -410,7 +430,10 @@ class CompatibilityAssessment(BaseModel):
     )
     unknown_dimensions: list[str] = Field(
         default_factory=list,
-        description="Dimensions that could not be decided, named explicitly.",
+        description=(
+            "Required dimensions that could not be decided, named explicitly. A "
+            "dimension the project never asked about is not listed."
+        ),
     )
 
 
@@ -528,6 +551,10 @@ class RecommendationExplanation(BaseModel):
     """
 
     why_recommended: list[str] = Field(default_factory=list)
+    requirement_coverage: list[str] = Field(
+        default_factory=list,
+        description="One line per project requirement, keeping matched/unknown/missing apart.",
+    )
     what_matches: list[str] = Field(default_factory=list)
     what_is_unknown: list[str] = Field(default_factory=list)
     what_is_missing: list[str] = Field(default_factory=list)
