@@ -327,6 +327,28 @@ def _target_analysis(
     # label spaces directly, whereas the weak match only found a shared word. An
     # exact or alias match names the target outright, so it still stands.
     weak_match = verdict.quality in (MatchQuality.SEMANTIC, MatchQuality.INFERRED)
+    if (
+        status is MatchStatus.MATCH
+        and verdict.quality is MatchQuality.INFERRED
+        and not declared_conflict
+    ):
+        # The weakest positive evidence the ranker accepts is a shared subject
+        # area: real, but it does not say the dataset has *this* label. Reporting
+        # it as PRESENT would claim a column nobody named.
+        return TargetAnalysis(
+            requirement=requirement,
+            state=TargetState.UNKNOWN,
+            layer=layer,
+            evidence=(
+                f"only a shared subject area links the dataset to {requirement!r}"
+                + (f" ({verdict.via})" if verdict.via else "")
+            ),
+            detail=(
+                f"The dataset covers a related subject but nothing in its metadata "
+                f"names {requirement!r} as a label. This is an unknown, not a present target."
+            ),
+            match_quality=verdict.quality,
+        )
     if status is MatchStatus.MATCH and not (declared_conflict and weak_match):
         return TargetAnalysis(
             requirement=requirement,
@@ -338,6 +360,7 @@ def _target_analysis(
                 f"{'declared metadata' if layer in DECLARING_LAYERS else 'inferred metadata'}"
                 + (f" ({verdict.quality.value})" if verdict.quality else "")
             ),
+            match_quality=verdict.quality,
         )
 
     if declared_conflict or status is MatchStatus.MISMATCH:
@@ -978,15 +1001,29 @@ def build_recommendation_explanation(
         for f in coverage.matched
         if f.layer in DECLARING_LAYERS
     ]
-    if target_state is TargetState.PRESENT:
-        verified.append(f"Target {target_state.value}")
     inferred = [
         f"{f.requirement} ({f.state.value})"
         for f in coverage.matched
         if f.layer not in DECLARING_LAYERS
     ]
+    if target_state is TargetState.PRESENT:
+        # Only a match that names the target is "verified"; a dictionary-equivalent
+        # match is DataPilot's own reasoning over published text, so it is inferred.
+        if target.match_quality in (MatchQuality.EXACT, MatchQuality.ALIAS):
+            verified.append(f"Target {target_name} named in the dataset's own metadata")
+        else:
+            inferred.append(
+                f"Target {target_name} matched through a dictionary equivalent"
+                + (f" ({target.evidence})" if target.evidence else "")
+            )
     if layer is EvidenceLayer.AI_SUGGESTED:
         inferred.append("Candidate metadata is model-generated, not externally published")
+    claims = candidate.ai_suggested_claims
+    if claims is not None:
+        inferred.append(
+            f"A model also made unconfirmed claims about this dataset ({claims.source}); "
+            "none were used as evidence"
+        )
 
     return RecommendationExplanation(
         why_recommended=why,

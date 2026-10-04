@@ -962,3 +962,66 @@ class TestGenericWordTargetFalsePositive:
         assert intelligence.target_analysis.state is TargetState.INCOMPATIBLE
         assert intelligence.compatibility.target is MatchStatus.MISMATCH
         assert RiskCategory.TARGET_MISMATCH in {r.category for r in intelligence.risks}
+
+
+# ---------------------------------------------------------------------------
+# target match quality is reported honestly
+# ---------------------------------------------------------------------------
+
+
+def _with_target_verdict(ranked: DatasetCandidate, quality, via="x") -> DatasetCandidate:
+    """Replace the ranker's target verdict, to test how intelligence reads each quality."""
+    from app.schemas.dataset import MatchStatus as MS, RankingFactorName as RF, RequirementMatch
+
+    clone = ranked.model_copy(deep=True)
+    for factor in clone.ranking_factors:
+        if factor.name is RF.TARGET_MATCH:
+            factor.requirements = [
+                RequirementMatch(
+                    term=factor.requirements[0].term if factor.requirements else "academic performance",
+                    status=MS.MATCH,
+                    quality=quality,
+                    via=via,
+                )
+            ]
+    return clone
+
+
+class TestTargetMatchQualityIsReportedHonestly:
+    def _build(self, quality):
+        from app.schemas.dataset import MatchQuality
+
+        requirements = make_requirements()
+        ranked = _with_target_verdict(_ranked(make_candidate(), requirements), getattr(MatchQuality, quality))
+        return build_dataset_intelligence(ranked, requirements)
+
+    def test_exact_match_is_present_and_listed_as_verified(self):
+        intel = self._build("EXACT")
+        assert intel.target_analysis.state is TargetState.PRESENT
+        assert any("named in the dataset's own metadata" in v for v in intel.explanation.what_is_verified)
+        assert not any("dictionary equivalent" in v for v in intel.explanation.what_is_inferred)
+
+    def test_semantic_match_is_present_but_listed_as_inferred_not_verified(self):
+        intel = self._build("SEMANTIC")
+        assert intel.target_analysis.state is TargetState.PRESENT
+        assert intel.target_analysis.match_quality.value == "semantic"
+        assert not any(v.startswith("Target") for v in intel.explanation.what_is_verified)
+        assert any("dictionary equivalent" in v for v in intel.explanation.what_is_inferred)
+
+    def test_a_shared_subject_area_alone_is_unknown_not_present(self):
+        intel = self._build("INFERRED")
+        assert intel.target_analysis.state is TargetState.UNKNOWN
+        assert intel.compatibility.target is MatchStatus.UNKNOWN
+        assert RiskCategory.TARGET_UNKNOWN in {r.category for r in intel.risks}
+        assert "shared subject area" in intel.target_analysis.evidence
+
+    def test_merged_ai_claims_are_disclosed_but_never_used(self):
+        from app.services.datasets.deduplicator import DatasetDeduplicator
+
+        verified = make_candidate(name="Student Performance", url="https://x.com/a",
+                                  target_description=None, task_types=[])
+        ai = _ai_candidate(name="Student Performance", url="https://x.com/a", features=["bmi"])
+        merged = DatasetDeduplicator().deduplicate([verified, ai])[0]
+        intel = _intelligence(merged, make_requirements(features=["bmi"]))
+        assert any("unconfirmed claims" in v for v in intel.explanation.what_is_inferred)
+        assert {f.state for f in intel.feature_coverage.all_features} == {FeatureMatchState.UNKNOWN}

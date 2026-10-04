@@ -43,7 +43,7 @@ from typing import Optional
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from app.schemas.dataset import MatchStatus, ProjectAnalysisData
+from app.schemas.dataset import MatchQuality, MatchStatus, ProjectAnalysisData
 
 # ---------------------------------------------------------------------------
 # Evidence
@@ -358,6 +358,14 @@ class TargetAnalysis(BaseModel):
     layer: EvidenceLayer
     evidence: str = ""
     detail: str = ""
+    match_quality: Optional[MatchQuality] = Field(
+        None,
+        description=(
+            "How a PRESENT target was matched. EXACT/ALIAS name the target; SEMANTIC "
+            "reached it through a dictionary equivalent, so it is reported as "
+            "inferred rather than verified."
+        ),
+    )
 
     @model_validator(mode="after")
     def positive_claims_need_declared_evidence(self) -> "TargetAnalysis":
