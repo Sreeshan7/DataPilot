@@ -347,3 +347,90 @@ class TestKaggleConfiguration:
 
         assert "authorization" not in seen[0].headers
 
+
+
+class TestEmptyResultFallback:
+    """A rare-term-heavy query can return nothing; retry once with its head."""
+
+    LONG = "customer churn status purchase history tenure"
+
+    def test_fallback_query_keeps_the_leading_three_terms(self):
+        from app.services.datasets.kaggle_source import fallback_query
+
+        assert fallback_query(self.LONG) == "customer churn status"
+
+    @pytest.mark.parametrize("short", ["student performance", "a b c", "diabetes", ""])
+    def test_a_query_of_three_terms_or_fewer_is_never_shortened(self, short):
+        from app.services.datasets.kaggle_source import fallback_query
+
+        assert fallback_query(short) is None
+
+    @pytest.mark.asyncio
+    async def test_an_empty_first_query_is_retried_once_with_the_head(self):
+        seen: list[str] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen.append(request.url.params["search"])
+            return httpx.Response(200, json=[] if len(seen) == 1 else make_kaggle_payload(2))
+
+        client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        source = KaggleDatasetSource(settings=make_settings(), client=client)
+        out = await source.search(_request(self.LONG))
+        assert seen == [self.LONG, "customer churn status"]
+        assert len(out) == 2
+
+    @pytest.mark.asyncio
+    async def test_a_non_empty_first_query_is_never_retried(self):
+        seen: list[str] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen.append(request.url.params["search"])
+            return httpx.Response(200, json=make_kaggle_payload(2))
+
+        client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        await KaggleDatasetSource(settings=make_settings(), client=client).search(_request(self.LONG))
+        assert seen == [self.LONG]
+
+    @pytest.mark.asyncio
+    async def test_a_short_query_that_finds_nothing_is_not_retried(self):
+        seen: list[str] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen.append(request.url.params["search"])
+            return httpx.Response(200, json=[])
+
+        client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        out = await KaggleDatasetSource(settings=make_settings(), client=client).search(
+            _request("student performance")
+        )
+        assert out == [] and len(seen) == 1
+
+    @pytest.mark.asyncio
+    async def test_when_both_attempts_are_empty_the_cost_is_two_requests(self):
+        seen: list[str] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen.append(request.url.params["search"])
+            return httpx.Response(200, json=[])
+
+        client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        out = await KaggleDatasetSource(settings=make_settings(), client=client).search(
+            _request(self.LONG)
+        )
+        assert out == [] and len(seen) == 2
+
+    @pytest.mark.asyncio
+    async def test_an_error_on_the_first_attempt_is_not_masked_by_a_retry(self):
+        seen: list[str] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen.append(request.url.params["search"])
+            return httpx.Response(429)
+
+        client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        with pytest.raises(DatasetSourceError) as raised:
+            await KaggleDatasetSource(settings=make_settings(), client=client).search(
+                _request(self.LONG)
+            )
+        assert raised.value.code == "KAGGLE_RATE_LIMITED"
+        assert len(seen) == 1

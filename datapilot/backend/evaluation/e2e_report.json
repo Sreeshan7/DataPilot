@@ -1,0 +1,174 @@
+[
+  {
+    "scenario": "iot_botnet",
+    "status": "ok",
+    "checks_passed": 74,
+    "checks_total": 74,
+    "failures": [],
+    "summary": {
+      "query": "malicious network activity traffic logs device",
+      "sources": {
+        "kaggle": "ok:5",
+        "huggingface": "ok:2",
+        "genai": "ok:3"
+      },
+      "meta": {
+        "raw_candidates": 10,
+        "verified_count": 9,
+        "ai_suggested_count": 1,
+        "enrichment": {
+          "attempted": 5,
+          "succeeded": 5,
+          "error_codes": []
+        },
+        "confirmed_ai_suggestions": 2
+      },
+      "outcome": "recommended",
+      "best_match": "Industrial IoT, Smart Home & Security",
+      "close_call": false,
+      "top": [
+        {
+          "name": "Industrial IoT, Smart Home & Security",
+          "source": "kaggle",
+          "score": 86.48,
+          "compat": "high",
+          "confidence": "high",
+          "schema": "partial",
+          "target": "present",
+          "features": 3,
+          "depth": "detailed"
+        },
+        {
+          "name": "Pegasus Spyware Attack(Synthetic Dataset)",
+          "source": "kaggle",
+          "score": 73.24,
+          "compat": "medium",
+          "confidence": "medium",
+          "schema": "partial",
+          "target": "present",
+          "features": 3,
+          "depth": "detailed"
+        },
+        {
+          "name": "Cyber Security",
+          "source": "kaggle",
+          "score": 65.28,
+          "compat": "medium",
+          "confidence": "medium",
+          "schema": "unknown",
+          "target": "present",
+          "features": 3,
+          "depth": "detailed"
+        },
+        {
+          "name": "Malware Detection in Network Traffic Data",
+          "source": "kaggle",
+          "score": 63.06,
+          "compat": "medium",
+          "confidence": "medium",
+          "schema": "partial",
+          "target": "present",
+          "features": 3,
+          "depth": "detailed"
+        },
+        {
+          "name": "advaitnmenon network traffic data malicious activity detection",
+          "source": "huggingface",
+          "score": 54.34,
+          "compat": "medium",
+          "confidence": "medium",
+          "schema": "unknown",
+          "target": "present",
+          "features": 3,
+          "depth": "detailed"
+        }
+      ]
+    }
+  },
+  {
+    "scenario": "retail_churn",
+    "status": "ok",
+    "checks_passed": 70,
+    "checks_total": 70,
+    "failures": [],
+    "summary": {
+      "query": "churn status yes purchase history customer",
+      "sources": {
+        "kaggle": "ok:10",
+        "huggingface": "ok:10",
+        "genai": "ok:2"
+      },
+      "meta": {
+        "raw_candidates": 22,
+        "verified_count": 10,
+        "ai_suggested_count": 0,
+        "enrichment": {
+          "attempted": 5,
+          "succeeded": 5,
+          "error_codes": []
+        },
+        "confirmed_ai_suggestions": 1
+      },
+      "outcome": "recommended",
+      "best_match": "Banking Customer Churn Prediction Dataset",
+      "close_call": false,
+      "top": [
+        {
+          "name": "Banking Customer Churn Prediction Dataset",
+          "source": "kaggle",
+          "score": 68.3,
+          "compat": "medium",
+          "confidence": "medium",
+          "schema": "partial",
+          "target": "present",
+          "features": 3,
+          "depth": "detailed"
+        },
+        {
+          "name": "Customer Churn Prediction",
+          "source": "kaggle",
+          "score": 61.25,
+          "compat": "medium",
+          "confidence": "medium",
+          "schema": "partial",
+          "target": "present",
+          "features": 3,
+          "depth": "detailed"
+        },
+        {
+          "name": "Telco Customer Churn",
+          "source": "kaggle",
+          "score": 57.69,
+          "compat": "medium",
+          "confidence": "medium",
+          "schema": "partial",
+          "target": "present",
+          "features": 3,
+          "depth": "detailed"
+        },
+        {
+          "name": "Telecommunications Industry Customer churn dataset",
+          "source": "kaggle",
+          "score": 50.14,
+          "compat": "low",
+          "confidence": "low",
+          "schema": "partial",
+          "target": "present",
+          "features": 3,
+          "depth": "detailed"
+        },
+        {
+          "name": "Large Customer Churn Analysis Dataset",
+          "source": "kaggle",
+          "score": 48.54,
+          "compat": "medium",
+          "confidence": "medium",
+          "schema": "unknown",
+          "target": "present",
+          "features": 3,
+          "depth": "detailed"
+        }
+      ]
+    }
+  }
+]

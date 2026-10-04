@@ -28,6 +28,20 @@ logger = get_logger(__name__)
 _LIST_PATH = "/datasets/list"
 _VIEW_PATH = "/datasets/view"
 
+#: Kaggle ranks by relevance but returns nothing once too many rare terms are
+#: combined (measured live: a 5-term churn query returned 0 rows, its 3-term head
+#: returned 20). When a query comes back empty it is retried once with this many
+#: leading terms, which the query builder fills with the most project-specific
+#: words first. A non-empty result is never retried, so the cost is at most one
+#: extra request, and only when there would otherwise be nothing to show.
+FALLBACK_QUERY_TERMS = 3
+
+
+def fallback_query(query: str) -> Optional[str]:
+    """The shortened retry query, or ``None`` when shortening would change nothing."""
+    words = query.split()
+    return " ".join(words[:FALLBACK_QUERY_TERMS]) if len(words) > FALLBACK_QUERY_TERMS else None
+
 
 class KaggleDatasetSource(DatasetSource):
     """Discovers real, externally published Kaggle datasets."""
@@ -70,27 +84,38 @@ class KaggleDatasetSource(DatasetSource):
             )
 
         limit = max(1, min(int(request.limit), self.max_limit))
-        candidates: list[DatasetCandidate] = []
-        seen: set[str] = set()
 
         async with self._acquire_client() as client:
-            for page in range(1, self._settings.kaggle_max_pages + 1):
-                payload = await self._fetch_page(client, query, page)
-                page_candidates = normalize_kaggle_records(payload)
-                if not page_candidates:
-                    break
-                for candidate in page_candidates:
-                    if candidate.id in seen:
-                        continue
-                    seen.add(candidate.id)
-                    candidates.append(candidate)
-                if len(candidates) >= limit:
-                    break
+            candidates = await self._search_pages(client, query, limit)
+            shorter = fallback_query(query)
+            if not candidates and shorter is not None:
+                logger.info("Kaggle returned nothing for %r; retrying with %r", query, shorter)
+                query = shorter
+                candidates = await self._search_pages(client, query, limit)
 
         logger.info(
             "Kaggle discovery for query %r returned %d candidates", query, len(candidates)
         )
         return candidates[:limit]
+
+    async def _search_pages(
+        self, client: httpx.AsyncClient, query: str, limit: int
+    ) -> list[DatasetCandidate]:
+        candidates: list[DatasetCandidate] = []
+        seen: set[str] = set()
+        for page in range(1, self._settings.kaggle_max_pages + 1):
+            payload = await self._fetch_page(client, query, page)
+            page_candidates = normalize_kaggle_records(payload)
+            if not page_candidates:
+                break
+            for candidate in page_candidates:
+                if candidate.id in seen:
+                    continue
+                seen.add(candidate.id)
+                candidates.append(candidate)
+            if len(candidates) >= limit:
+                break
+        return candidates
 
     async def _fetch_page(self, client: httpx.AsyncClient, query: str, page: int) -> Any:
         return await self._get_json(client, _LIST_PATH, {"search": query, "page": page})
