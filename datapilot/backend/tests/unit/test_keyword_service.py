@@ -13,7 +13,7 @@ def ks() -> KeywordService:
 
 class TestKeywordServiceLoading:
     def test_loads_successfully(self, ks: KeywordService):
-        assert ks.version == "0.2.0"
+        assert ks.version == "0.2.1"
 
     def test_has_canonical_terms(self, ks: KeywordService):
         terms = ks.get_all_canonical_terms()

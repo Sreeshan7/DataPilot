@@ -1,8 +1,8 @@
 {
   "metadata": {
-    "version": "0.2.0",
+    "version": "0.2.1",
     "description": "DataPilot project-to-dataset knowledge base",
-    "total_concepts": 147,
+    "total_concepts": 148,
     "last_updated": "2026-08-12"
   },
   "domains": {
@@ -2658,6 +2658,63 @@
               "importance": 0.88
             },
             {
+              "id": "health.clinical.chronic_disease",
+              "canonical_term": "chronic disease",
+              "synonyms": [
+                "chronic illness",
+                "long term condition",
+                "diabetes prediction",
+                "diabetes mellitus"
+              ],
+              "aliases": [
+                "chronic condition tracking",
+                "diabetes dataset"
+              ],
+              "abbreviations": [],
+              "related_concepts": [
+                "blood glucose monitoring",
+                "metabolic screening",
+                "lifestyle risk factors"
+              ],
+              "potential_ml_tasks": [
+                "classification",
+                "binary_classification",
+                "regression"
+              ],
+              "dataset_requirements": [
+                "patient records",
+                "clinical measurements",
+                "electronic health records"
+              ],
+              "feature_requirements": [
+                "bmi",
+                "blood glucose",
+                "blood pressure",
+                "hba1c",
+                "cholesterol",
+                "insulin level",
+                "age",
+                "family history"
+              ],
+              "target_requirements": [
+                "disease labels",
+                "diabetes outcome"
+              ],
+              "importance": 0.9,
+              "feature_aliases": {
+                "bmi": [
+                  "body mass index"
+                ],
+                "hba1c": [
+                  "glycated hemoglobin",
+                  "a1c"
+                ],
+                "blood glucose": [
+                  "fasting glucose"
+                ]
+              }
+            },
+            {
               "id": "health.clinical.patient_monitoring",
               "canonical_term": "patient monitoring",
               "synonyms": [
@@ -2952,7 +3009,14 @@
                 "default labels",
                 "risk scores"
               ],
-              "importance": 0.9
+              "importance": 0.9,
+              "feature_aliases": {
+                "income": [
+                  "salary",
+                  "annual income",
+                  "estimated salary"
+                ]
+              }
             },
             {
               "id": "finance.risk.market_risk",
@@ -3205,9 +3269,11 @@
               "synonyms": [
                 "academic performance",
                 "student achievement",
+                "academic achievement",
                 "academic outcome",
                 "student outcomes",
-                "learning outcomes"
+                "learning outcomes",
+                "final grade"
               ],
               "aliases": [
                 "student academic performance"

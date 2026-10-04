@@ -7,6 +7,7 @@ from app.core.logging_config import get_logger
 from app.schemas.project import (
     Ambiguity,
     Analysis,
+    ConfidenceAdjustment,
     ConfidenceValue,
     ConceptConflict,
     DatasetRequirement,
@@ -44,6 +45,105 @@ def _canonical_key(text: str) -> str:
     return text.strip()
 
 
+# ---------------------------------------------------------------------------
+# Confidence calibration
+# ---------------------------------------------------------------------------
+#
+# The model reports its own confidence, but it also reports the things it is
+# unsure about. Taking the first number at face value while ignoring the second
+# is how an analysis that asks for clarification still ships at 0.85. Every
+# deduction below is traceable to something concrete the model (or the
+# reconciliation) actually found, is bounded, and is reported in
+# ``Analysis.confidence_adjustments`` so the final number can be explained.
+
+# Asking for clarification is the strongest signal available: the model is
+# stating it cannot answer reliably as things stand.
+_CLARIFICATION_DEDUCTION = 0.25
+
+# Each unresolved ambiguity means the analysis rests on one reading of an
+# ambiguous brief, so it scales but saturates quickly.
+_AMBIGUITY_DEDUCTION = 0.08
+_MAX_AMBIGUITY_DEDUCTION = 0.16
+
+# Missing information is weighted by the severity the model assigned it.
+_SEVERITY_DEDUCTION = {"info": 0.02, "warning": 0.06, "critical": 0.15}
+_MAX_MISSING_DEDUCTION = 0.30
+
+# A project described in enough detail to define a dataset, but for which no
+# prediction target could be resolved, is not understood well enough to trust.
+_NO_TARGET_DEDUCTION = 0.15
+_NO_FEATURE_DEDUCTION = 0.05
+_SUBSTANTIAL_DESCRIPTION_WORDS = 30
+
+# The self-report is itself evidence, so deductions express relative doubt and
+# never drive the result to zero on their own.
+_MAX_TOTAL_DEDUCTION = 0.70
+
+
+def _uncertainty_deductions(
+    llm: LLMProjectAnalysis,
+    dataset_reqs: DatasetRequirements,
+    ambiguities: list[Ambiguity],
+    missing: list[MissingInformation],
+    word_count: int,
+) -> list[ConfidenceAdjustment]:
+    """Every named deduction to apply to the model's self-reported confidence."""
+    deductions: list[ConfidenceAdjustment] = []
+
+    if llm.needs_clarification:
+        deductions.append(
+            ConfidenceAdjustment(
+                reason="the analysis itself reports that clarification is needed",
+                amount=_CLARIFICATION_DEDUCTION,
+            )
+        )
+
+    if ambiguities:
+        deductions.append(
+            ConfidenceAdjustment(
+                reason=f"{len(ambiguities)} unresolved ambiguit"
+                + ("y" if len(ambiguities) == 1 else "ies"),
+                amount=min(len(ambiguities) * _AMBIGUITY_DEDUCTION, _MAX_AMBIGUITY_DEDUCTION),
+            )
+        )
+
+    by_severity: dict[str, int] = {}
+    for item in missing:
+        by_severity[item.severity] = by_severity.get(item.severity, 0) + 1
+    if by_severity:
+        amount = sum(
+            _SEVERITY_DEDUCTION[severity] * count
+            for severity, count in by_severity.items()
+            if severity in _SEVERITY_DEDUCTION
+        )
+        summary = ", ".join(f"{count} {severity}" for severity, count in sorted(by_severity.items()))
+        deductions.append(
+            ConfidenceAdjustment(
+                reason=f"information the model reported as missing ({summary})",
+                amount=min(amount, _MAX_MISSING_DEDUCTION),
+            )
+        )
+
+    # Only meaningful for a description long enough to have defined these.
+    if word_count >= _SUBSTANTIAL_DESCRIPTION_WORDS:
+        if not dataset_reqs.target_requirements:
+            deductions.append(
+                ConfidenceAdjustment(
+                    reason="no prediction target could be resolved from the description",
+                    amount=_NO_TARGET_DEDUCTION,
+                )
+            )
+        if not dataset_reqs.feature_requirements:
+            deductions.append(
+                ConfidenceAdjustment(
+                    reason="no required features could be resolved from the description",
+                    amount=_NO_FEATURE_DEDUCTION,
+                )
+            )
+
+    return deductions
+
+
 class ReconciliationService:
     """Reconciles deterministic dictionary matches with LLM inference.
 
@@ -67,7 +167,9 @@ class ReconciliationService:
         keywords = self._reconcile_keywords(dictionary_matches, llm_output)
         understanding = self._reconcile_understanding(dictionary_matches, llm_output)
         dataset_reqs = self._reconcile_dataset_requirements(dictionary_matches, llm_output)
-        analysis = self._reconcile_analysis(dictionary_matches, llm_output)
+        analysis = self._reconcile_analysis(
+            dictionary_matches, llm_output, dataset_reqs, word_count
+        )
 
         return ProjectAnalysisData(
             input=InputInfo(word_count=word_count),
@@ -327,11 +429,13 @@ class ReconciliationService:
         self,
         dict_matches: list[KeywordMatchEvidence],
         llm: LLMProjectAnalysis,
+        dataset_reqs: DatasetRequirements,
+        word_count: int,
     ) -> Analysis:
-        overall_confidence = llm.overall_confidence
-        if dict_matches and overall_confidence > 0:
+        self_report = llm.overall_confidence
+        if dict_matches and self_report > 0:
             dict_bonus = min(len(dict_matches) * 0.05, 0.15)
-            overall_confidence = min(overall_confidence + dict_bonus, 1.0)
+            self_report = min(self_report + dict_bonus, 1.0)
 
         ambiguities = [
             Ambiguity(
@@ -351,9 +455,20 @@ class ReconciliationService:
             for m in llm.missing_information
         ]
 
+        deductions = _uncertainty_deductions(
+            llm, dataset_reqs, ambiguities, missing, word_count
+        )
+        total_deduction = sum(d.amount for d in deductions)
+        # Named deductions keep their full amounts so each reason stays legible;
+        # the applied total is what is bounded, and is reported separately.
+        applied_deduction = min(total_deduction, _MAX_TOTAL_DEDUCTION)
+        overall_confidence = min(max(self_report - applied_deduction, 0.0), 1.0)
+
         return Analysis(
-            overall_confidence=min(max(overall_confidence, 0.0), 1.0),
+            overall_confidence=round(overall_confidence, 4),
             ambiguities=ambiguities,
             missing_information=missing,
             needs_clarification=llm.needs_clarification,
+            confidence_adjustments=deductions,
+            confidence_deduction_total=round(applied_deduction, 4),
         )
