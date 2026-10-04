@@ -303,7 +303,15 @@ def _leakage_findings(
                 and result.single_feature_accuracy >= settings.quality_leakage_association
                 and result.single_feature_accuracy - result.majority_baseline >= 0.05
             )
-            if result.value >= settings.quality_leakage_association or accurate:
+            # A correlation ratio is variance-based and runs above the accuracy it implies
+            # (petal length separates three iris species with ratio 0.985 but a 96.7% rule), so for
+            # it the one-column rule must also be near-perfect before this is called leakage.
+            strong_value = result.value >= settings.quality_leakage_association and not (
+                result.method == "correlation_ratio"
+                and result.single_feature_accuracy is not None
+                and result.single_feature_accuracy < settings.quality_leakage_association
+            )
+            if strong_value or accurate:
                 detail = (
                     f"'{feature.name}' alone predicts '{target.column}' almost perfectly "
                     f"({result.method} {result.value:.3f}"

@@ -254,3 +254,67 @@ GENERATORS: dict[str, Callable[[], SyntheticDataset]] = {
     "tiny_table": tiny_table,
     "messy_table": messy_table,
 }
+
+
+# ---------------------------------------------------------------------------
+# Held-out datasets
+#
+# Written after the analyzer's rules were tuned against the datasets above, with their expected
+# properties fixed before the first run, so they measure agreement the rules were not shaped by.
+# ---------------------------------------------------------------------------
+
+
+def iris_like(n_per_class: int = 50, seed: int = 111) -> SyntheticDataset:
+    rng = np.random.default_rng(seed)
+    centres = {"setosa": (5.0, 3.4, 1.5, 0.25), "versicolor": (5.9, 2.8, 4.3, 1.3), "virginica": (6.6, 3.0, 5.5, 2.0)}
+    rows = {"sepal_length": [], "sepal_width": [], "petal_length": [], "petal_width": [], "species": []}
+    for label, centre in centres.items():
+        draws = rng.normal(centre, 0.3, size=(n_per_class, 4)).clip(0.1, None)
+        for key, column in zip(list(rows)[:4], draws.T):
+            rows[key].extend(_f(column, 1))
+        rows["species"].extend([label] * n_per_class)
+    order = rng.permutation(len(rows["species"]))  # a real file is rarely sorted by class
+    return SyntheticDataset("iris_like", {k: [v[i] for i in order] for k, v in rows.items()})
+
+
+def employee_attrition(n: int = 700, seed: int = 121) -> SyntheticDataset:
+    rng = np.random.default_rng(seed)
+    department = rng.choice(["sales", "research", "hr"], n, p=[0.35, 0.55, 0.10])
+    role = rng.choice(["engineer", "manager", "analyst", "technician", "director"], n)
+    marital = rng.choice(["single", "married", "divorced"], n)
+    overtime = rng.choice(["yes", "no"], n, p=[0.3, 0.7])
+    years = rng.integers(0, 30, n)
+    income = (2500 + 350 * years + rng.normal(0, 900, n)).clip(1500, None)
+    satisfaction = rng.integers(1, 5, n)
+    logit = -2.2 + np.where(overtime == "yes", 1.1, 0) - 0.08 * years - 0.3 * satisfaction + 0.4
+    attrition = rng.random(n) < 1 / (1 + np.exp(-logit))
+    return SyntheticDataset("employee_attrition", {
+        "employee_number": _s(range(10001, 10001 + n)),
+        "ssn": [f"{rng.integers(100, 899)}-{rng.integers(10, 99)}-{rng.integers(1000, 9999)}" for _ in range(n)],
+        "phone_number": [f"+1-555-{rng.integers(100, 999)}-{rng.integers(1000, 9999)}" for _ in range(n)],
+        "department": _s(department),
+        "job_role": _s(role),
+        "marital_status": _s(marital),
+        "overtime": _s(overtime),
+        "years_at_company": _s(years),
+        "monthly_income": _f(income, 0),
+        "job_satisfaction": _s(satisfaction),
+        "attrition": ["Yes" if a else "No" for a in attrition],
+    })
+
+
+def wide_numeric(n: int = 300, p: int = 120, seed: int = 131) -> SyntheticDataset:
+    rng = np.random.default_rng(seed)
+    x = rng.normal(0, 1, (n, p))
+    logit = 1.6 * x[:, 3] - 1.2 * x[:, 17]
+    y = rng.random(n) < 1 / (1 + np.exp(-logit))
+    columns: dict[str, list] = {f"f{j:03d}": _f(x[:, j], 3) for j in range(p)}
+    columns["y"] = _s(y.astype(int))
+    return SyntheticDataset("wide_numeric", columns)
+
+
+HELDOUT_GENERATORS: dict[str, Callable[[], SyntheticDataset]] = {
+    "iris_like": iris_like,
+    "employee_attrition": employee_attrition,
+    "wide_numeric": wide_numeric,
+}

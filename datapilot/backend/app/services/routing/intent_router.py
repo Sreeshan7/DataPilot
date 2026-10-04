@@ -49,14 +49,22 @@ MIN_DECISIVE_SCORE = 0.5
 #: ...and must beat the other side by this much, or the request is ambiguous.
 MIN_MARGIN = 0.25
 
-_DATA_NOUN = r"(?:data ?sets?|data|csv|excel|spreadsheet|xlsx|xls|file|table|database|workbook)"
+_DATA_NOUN = r"(?:data ?sets?|data(?!\s+(?:science|scientists?|engineer\w*|analy\w+|structures?|mining|entry))|csv|excel|spreadsheet|xlsx|xls|file|table|database|workbook|sheet|export|dump|records)"
 
 # ---- USER B cues ----------------------------------------------------------
 
 _POSSESSION = re.compile(
     rf"\b(?:i|we)\s*(?:'ve|ve|\s+have|\s+had|\s+got|\s+own|\s+downloaded|\s+uploaded|\s+attached|"
-    rf"\s+collected|\s+already\s+have|\s+already\s+know|\s+am\s+using|\s+was\s+given)\b"
+    rf"\s+collected|\s+already\s+have|\s+already\s+know|\s+am\s+using|\s+(?:was|were)\s+(?:given|handed|sent)|"
+    rf"\s+(?:have|has)\s+been\s+(?:given|handed|sent)|\s+received|"
+    rf"\s+(?:am|are)\s+(?:using|working\s+(?:with|on))|'(?:m|re)\s+(?:using|working\s+(?:with|on)))\b"
+    rf"(?!\s+(?:no|not|never)\b)"  # "I have no data" is the opposite of possession
     rf"[^.?!]{{0,60}}?\b{_DATA_NOUN}\b",
+    re.IGNORECASE,
+)
+#: "Attached is ...", "Here's the Excel sheet ...": handing something over.
+_HANDED_OVER = re.compile(
+    rf"\b(?:attached|enclosed|here(?:'s|\s+is|\s+are))\b[^.?!]{{0,40}}?\b{_DATA_NOUN}\b",
     re.IGNORECASE,
 )
 _POSSESSIVE = re.compile(rf"\bmy\s+(?:own\s+)?(?:\w+\s+)?{_DATA_NOUN}\b", re.IGNORECASE)
@@ -70,9 +78,22 @@ _ANALYSIS_VERB = re.compile(
     re.IGNORECASE,
 )
 _WHAT_CAN_I = re.compile(
-    r"\bwhat\s+(?:can|could|should)\s+(?:i|we)\s+(?:build|do|make|create|train|predict)\b|"
+    # "what should I do next?" says nothing about a dataset; it must point at one.
+    r"\bwhat\s+(?:can|could|should)\s+(?:i|we)\s+(?:build|do|make|create|train|predict)\b"
+    r"[^.?!]{0,30}\b(?:with|from|using)\s+\w+|"
     r"\bwhat\s+(?:projects?|ml\s+projects?|models?)\b[^.?!]{0,40}\b(?:with|from|using)\b",
     re.IGNORECASE,
+)
+#: A concrete file format named as something in hand: "shared a CSV", "exported ... to Excel".
+_FORMAT_MENTION = re.compile(
+    r"\b(?:an?|the|this|our|my)\s+(?:\w+\s+)?(?:csv|excel|xlsx?|spreadsheet|workbook)\b|"
+    r"\b(?:export(?:ed)?|sav(?:e|ed)|convert(?:ed)?)\b[^.?!]{0,40}\b(?:to|as|into)\s+(?:an?\s+)?"
+    r"(?:excel|csv|xlsx?|spreadsheet)\b",
+    re.IGNORECASE,
+)
+#: "my columns", "our rows": talking about the structure of data they hold.
+_OWN_STRUCTURE = re.compile(
+    r"\b(?:my|our)\s+(?:\w+\s+)?(?:columns?|rows?|features?|variables?|fields)\b", re.IGNORECASE
 )
 _COLUMN_TALK = re.compile(r"\b(?:target\s+column|which\s+columns?|use\s+column|the\s+columns?)\b", re.IGNORECASE)
 
@@ -83,7 +104,17 @@ _DISCOVERY = re.compile(
     rf"[^.?!]{{0,40}}?\b(?:data ?sets?|data)\b|"
     rf"\b(?:need|want|require)\s+(?:a|an|some|the\s+right|good|suitable)?\s*(?:good\s+|suitable\s+)?(?:data ?sets?)\b|"
     rf"\bwhere\s+(?:can|do)\s+(?:i|we)\s+(?:find|get|download)\b|"
-    rf"\b(?:which|what|any)\s+data ?sets?\b",
+    rf"\b(?:which|what|any)\s+data(?: ?sets?|\s+(?:sources?|repositor(?:y|ies)|portals?))\b|"
+    # "... but have no data": a project with nothing to run it on
+    rf"\b(?:have|got)\s+no\s+(?:data|data ?sets?)\b|\b(?:don't|do\s+not)\s+have\s+(?:any\s+)?(?:data|data ?sets?)\b|"
+    # bare "data": "I need data for ...", "what data should I use?"
+    rf"\b(?:need|want|require|looking\s+for|searching\s+for)\s+(?:some\s+|any\s+)?"
+    rf"(?:good\s+|suitable\s+|public\s+|open\s+|real\s+|relevant\s+|training\s+|sample\s+|labell?ed\s+)?"
+    rf"data\s+(?:for|to|about|on)\b|"
+    rf"\b(?:what|which)\s+data\s+(?:should|can|could|would|do)\s+(?:i|we)\s+(?:use|get|need|pick|choose|collect|train)\b|"
+    # "Is there an open dataset for ...?", "Give me a dataset to practice ..."
+    rf"\b(?:is|are)\s+there\s+(?:an?\s+|any\s+|some\s+)?(?:\w+\s+){{0,2}}data ?sets?\b|"
+    rf"\b(?:give|send|show|point)\s+me\s+(?:to\s+)?(?:an?\s+|some\s+)?(?:\w+\s+){{0,2}}data ?sets?\b",
     re.IGNORECASE,
 )
 #: "If you can't find ..." is a fallback clause, not a request to find a dataset now.
@@ -222,10 +253,16 @@ class IntentRouter:
             scores.b.append((0.8, "The user refers to 'my' dataset or file"))
         if _DEICTIC.search(text):
             scores.b.append((0.65, "The user refers to 'this/the attached' dataset or file"))
+        if _HANDED_OVER.search(text):
+            scores.b.append((0.75, "The user hands over data ('attached is', 'here is')"))
         if _FILE_MENTION.search(text):
             scores.b.append((0.8, "The message names a data file (.csv/.xlsx)"))
         if _WHAT_CAN_I.search(text):
             scores.b.append((0.7, "The user asks what can be built from it"))
+        if _FORMAT_MENTION.search(text):
+            scores.b.append((0.6, "A data file format is mentioned as something they have (csv/Excel)"))
+        if _OWN_STRUCTURE.search(text):
+            scores.b.append((0.7, "The user talks about the columns or rows of their own data"))
         if _COLUMN_TALK.search(text):
             scores.b.append((0.45, "The user talks about columns of a dataset"))
 

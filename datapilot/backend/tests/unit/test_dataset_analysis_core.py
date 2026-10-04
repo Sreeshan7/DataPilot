@@ -214,7 +214,9 @@ class TestTasks:
 
     def test_a_tiny_dataset_downgrades_the_task_and_says_why(self, tmp_path):
         task = next(t for t in run("tiny_table", tmp_path).tasks if t.target == "label")
-        assert task.state is CandidateState.POSSIBLE  # downgraded from the target's STRONG
+        # Too few rows to train and validate: named, but never presented as a supported task.
+        assert task.state is CandidateState.WEAK
+        assert task.confidence <= 0.35
         assert any("only 12 rows" in limit for limit in task.limitations)
 
     def test_a_dominant_class_is_flagged_as_a_limit_on_the_task(self, tmp_path):
@@ -411,3 +413,23 @@ class TestPipeline:
         deadline = Deadline(1.0, clock=lambda: next(ticks))
         with pytest.raises(AnalysisTimeout):
             run("house_prices", tmp_path, deadline=deadline)
+
+
+class TestLeakageIsNotAStrongPredictor:
+    """A feature that separates the classes well is a good predictor, not necessarily a leak."""
+
+    def test_a_correlation_ratio_alone_is_not_enough(self, tmp_path):
+        from app.services.dataset_analysis.evaluation.datasets import HELDOUT_GENERATORS
+
+        result = run(HELDOUT_GENERATORS["iris_like"](), tmp_path)
+        assert findings(result, QualityCode.LEAKAGE_SIGNAL) == []  # petal length: ratio 0.985, rule 96.7%
+
+    def test_a_feature_that_is_the_target_in_disguise_is_still_flagged(self, tmp_path):
+        ds = SyntheticDataset("copycat", {
+            "x": [str((i * 7) % 11) for i in range(300)],
+            "level": [str(i % 3 * 10 + (i % 7) * 0.01) for i in range(300)],
+            "label": ["low", "mid", "high"] * 100,
+        })
+        leak = findings(run(ds, tmp_path), QualityCode.LEAKAGE_SIGNAL)
+        assert [f.column for f in leak] == ["level"]
+        assert leak[0].evidence["single_feature_accuracy"] >= 0.98

@@ -76,6 +76,10 @@ def _downgrade(state: CandidateState) -> CandidateState:
     }.get(state, state)
 
 
+#: Confidence ceiling for a supervised task on a dataset too small to train and validate a model.
+TOO_FEW_ROWS_CONFIDENCE = 0.35
+
+
 def _size_limits(n_rows: int, settings: Settings) -> list[str]:
     if n_rows < settings.task_min_rows_supervised:
         return [
@@ -95,8 +99,12 @@ def _supervised_for_target(
     out: list[TaskCandidate] = []
     base_state = target.state
     limits = _size_limits(n_rows, settings)
+    confidence = target.confidence
     if limits:
-        base_state = _downgrade(base_state)
+        # Too few rows to train and validate a model: the task is named so the user knows it
+        # exists in principle, but it is never presented as a well-supported one.
+        base_state = CandidateState.WEAK
+        confidence = min(confidence, TOO_FEW_ROWS_CONFIDENCE)
 
     counts = class_counts(column, settings)
     class_limits: list[str] = []
@@ -120,20 +128,20 @@ def _supervised_for_target(
     if kind is TargetKind.BINARY:
         out.append(TaskCandidate(
             task=MLTask.BINARY_CLASSIFICATION, target=target.column, state=base_state,
-            confidence=target.confidence,
+            confidence=confidence,
             evidence=[EvidenceItem(statement=f"'{target.column}' has two classes", level=parsed)],
             limitations=limits + class_limits))
     elif kind is TargetKind.MULTICLASS:
         classes = column.profile.unique_count if column.profile else 0
         out.append(TaskCandidate(
             task=MLTask.MULTICLASS_CLASSIFICATION, target=target.column, state=base_state,
-            confidence=target.confidence,
+            confidence=confidence,
             evidence=[EvidenceItem(statement=f"'{target.column}' has {classes} classes", level=parsed)],
             limitations=limits + class_limits))
     elif kind is TargetKind.CONTINUOUS:
         out.append(TaskCandidate(
             task=MLTask.REGRESSION, target=target.column, state=base_state,
-            confidence=target.confidence,
+            confidence=confidence,
             evidence=[EvidenceItem(statement=f"'{target.column}' is a continuous numeric quantity", level=parsed)],
             limitations=limits))
         # Time series: a regular time axis plus a numeric target.
@@ -148,7 +156,7 @@ def _supervised_for_target(
                 notes.append(f"the timestamps in '{date_col.name}' are irregular, which complicates forecasting")
             out.append(TaskCandidate(
                 task=MLTask.TIME_SERIES_FORECASTING, target=target.column, state=ts_state,
-                confidence=round(target.confidence * (0.9 if regular else 0.5), 4),
+                confidence=round(confidence * (0.9 if regular else 0.5), 4),
                 evidence=[EvidenceItem(
                     statement=f"'{date_col.name}' is a date/time column with {granularity} spacing",
                     level=parsed)],
@@ -164,7 +172,7 @@ def _supervised_for_target(
     ):
         out.append(TaskCandidate(
             task=MLTask.ANOMALY_DETECTION, target=target.column, state=_downgrade(base_state),
-            confidence=round(target.confidence * 0.7, 4),
+            confidence=round(confidence * 0.7, 4),
             evidence=[EvidenceItem(
                 statement=f"the rarer value of '{target.column}' is {minority_share:.1%} of rows",
                 level=parsed)],

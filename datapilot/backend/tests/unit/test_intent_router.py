@@ -229,3 +229,51 @@ class TestEndpoint:
                 "/api/v1/intent/resolve", json={"message": "SECRET-MARKER-123 find me a dataset"}
             )
         assert "SECRET-MARKER-123" not in caplog.text
+
+
+class TestPhrasingFamiliesFoundByTheBenchmark:
+    """Each case was a real miss on a held-out batch, and each is a family of phrasings."""
+
+    @pytest.mark.parametrize(
+        "message",
+        [
+            "We were given a CSV of customer records and need to know if it is usable",
+            "Attached is our CRM export, can you tell me which fields matter?",
+            "Here's the Excel sheet from our finance team. What's in it?",
+            "I'm working with the Boston housing dataset; which column is the label?",
+            "Our team lead shared a CSV with quarterly numbers, can you explain what's in it?",
+            "I just exported our sales database to Excel; is it ready for modeling?",
+            "Which of my columns are identifiers?",
+        ],
+    )
+    def test_handing_over_or_describing_data_in_hand_is_user_b(self, message):
+        assert route(message=message).intent is B
+
+    @pytest.mark.parametrize(
+        "message",
+        [
+            "I need data for a fraud detection system on credit card transactions",
+            "I'm planning a capstone on predicting loan defaults, what data should I use?",
+            "Is there an open dataset for predicting energy consumption?",
+            "I'm building a classifier for handwritten digits. What data should I train on?",
+            "Need training data for a chatbot that answers customer questions",
+            "Give me a dataset to practice logistic regression",
+            "My project is predicting flight delays. Which data sources exist?",
+            "I'd like to work on a credit scoring project but have no data",
+        ],
+    )
+    def test_asking_for_data_in_other_words_is_user_a(self, message):
+        assert route(message=message).intent is A
+
+    @pytest.mark.parametrize(
+        "message",
+        ["What should I do next?", "Can you help with my data science homework?", "I have no data"],
+    )
+    def test_these_do_not_say_the_user_has_a_dataset(self, message):
+        assert route(message=message).intent is not B
+
+    def test_having_no_data_is_the_opposite_of_possession(self):
+        assert route(message="I have no data for my project, can you help me find some?").intent is A
+
+    def test_data_science_is_a_field_not_a_dataset(self):
+        assert route(message="my data science project needs a model").intent is not B
