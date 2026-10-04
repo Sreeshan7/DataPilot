@@ -23,7 +23,7 @@ import re
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from fastapi.testclient import TestClient
 
@@ -205,6 +205,10 @@ def run_scenario(client: TestClient, key: str, description: str) -> tuple[Scenar
 
 
 def main(argv: list[str]) -> int:
+    # Dataset titles are arbitrary text. A legacy console codec (cp1252 on Windows)
+    # must not be able to crash a report halfway through a scenario.
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     only = set(argv[1:])
     client = TestClient(app)
     results: list[ScenarioResult] = []

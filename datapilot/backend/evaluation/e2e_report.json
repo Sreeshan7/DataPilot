@@ -1,19 +1,19 @@
 [
   {
-    "scenario": "iot_botnet",
+    "scenario": "student",
     "status": "ok",
-    "checks_passed": 74,
-    "checks_total": 74,
+    "checks_passed": 75,
+    "checks_total": 75,
     "failures": [],
     "summary": {
-      "query": "malicious network activity traffic logs device",
+      "query": "student academic performance attendance examination marks",
       "sources": {
-        "kaggle": "ok:5",
-        "huggingface": "ok:2",
+        "kaggle": "ok:10",
+        "huggingface": "ok:4",
         "genai": "ok:3"
       },
       "meta": {
-        "raw_candidates": 10,
+        "raw_candidates": 17,
         "verified_count": 9,
         "ai_suggested_count": 1,
         "enrichment": {
@@ -21,38 +21,274 @@
           "succeeded": 5,
           "error_codes": []
         },
-        "confirmed_ai_suggestions": 2
+        "confirmed_ai_suggestions": 1
       },
       "outcome": "recommended",
-      "best_match": "Industrial IoT, Smart Home & Security",
+      "best_match": "Synthetic Student Performance Prediction Dataset",
       "close_call": false,
       "top": [
         {
-          "name": "Industrial IoT, Smart Home & Security",
+          "name": "Synthetic Student Performance Prediction Dataset",
           "source": "kaggle",
-          "score": 86.48,
+          "score": 79.95,
           "compat": "high",
           "confidence": "high",
           "schema": "partial",
           "target": "present",
-          "features": 3,
+          "features": 5,
           "depth": "detailed"
         },
         {
-          "name": "Pegasus Spyware Attack(Synthetic Dataset)",
+          "name": "Student Performance Dataset",
           "source": "kaggle",
-          "score": 73.24,
+          "score": 74.62,
+          "compat": "medium",
+          "confidence": "medium",
+          "schema": "unknown",
+          "target": "present",
+          "features": 5,
+          "depth": "detailed"
+        },
+        {
+          "name": "Student Performance Prediction Dataset",
+          "source": "kaggle",
+          "score": 72.39,
           "compat": "medium",
           "confidence": "medium",
           "schema": "partial",
           "target": "present",
-          "features": 3,
+          "features": 5,
+          "depth": "detailed"
+        },
+        {
+          "name": "Predicting End Semester Performance",
+          "source": "kaggle",
+          "score": 68.29,
+          "compat": "medium",
+          "confidence": "medium",
+          "schema": "partial",
+          "target": "present",
+          "features": 5,
+          "depth": "detailed"
+        },
+        {
+          "name": "Open University Learning Analytics Dataset (OULAD)",
+          "source": "kaggle",
+          "score": 63.29,
+          "compat": "medium",
+          "confidence": "medium",
+          "schema": "unknown",
+          "target": "present",
+          "features": 5,
+          "depth": "detailed"
+        }
+      ]
+    }
+  },
+  {
+    "scenario": "iot_botnet",
+    "status": "ok",
+    "checks_passed": 78,
+    "checks_total": 78,
+    "failures": [],
+    "summary": {
+      "query": "malicious network activity traffic features device",
+      "sources": {
+        "kaggle": "ok:10",
+        "huggingface": "ok:2",
+        "genai": "ok:3"
+      },
+      "meta": {
+        "raw_candidates": 15,
+        "verified_count": 8,
+        "ai_suggested_count": 2,
+        "enrichment": {
+          "attempted": 5,
+          "succeeded": 5,
+          "error_codes": []
+        },
+        "confirmed_ai_suggestions": 1
+      },
+      "outcome": "recommended",
+      "best_match": "Zero-Day Attack Detection in Logistics Networks",
+      "close_call": true,
+      "top": [
+        {
+          "name": "Zero-Day Attack Detection in Logistics Networks",
+          "source": "kaggle",
+          "score": 77.76,
+          "compat": "high",
+          "confidence": "high",
+          "schema": "partial",
+          "target": "present",
+          "features": 2,
           "depth": "detailed"
         },
         {
           "name": "Cyber Security",
           "source": "kaggle",
-          "score": 65.28,
+          "score": 74.17,
+          "compat": "medium",
+          "confidence": "medium",
+          "schema": "unknown",
+          "target": "present",
+          "features": 2,
+          "depth": "detailed"
+        },
+        {
+          "name": "AI-Driven 6G English E-Learning Traffic Dataset",
+          "source": "kaggle",
+          "score": 72.86,
+          "compat": "high",
+          "confidence": "high",
+          "schema": "partial",
+          "target": "present",
+          "features": 2,
+          "depth": "detailed"
+        },
+        {
+          "name": "CTU-IoT-Malware IoT Network Traffic",
+          "source": "kaggle",
+          "score": 65.91,
+          "compat": "medium",
+          "confidence": "medium",
+          "schema": "partial",
+          "target": "present",
+          "features": 2,
+          "depth": "detailed"
+        },
+        {
+          "name": "IoT-23 Dataset",
+          "source": "genai",
+          "score": 64.6,
+          "compat": "medium",
+          "confidence": "low",
+          "schema": "unknown",
+          "target": "unknown",
+          "features": 2,
+          "depth": "listing"
+        }
+      ]
+    }
+  },
+  {
+    "scenario": "diabetes",
+    "status": "ok",
+    "checks_passed": 75,
+    "checks_total": 75,
+    "failures": [],
+    "summary": {
+      "query": "diabetes diagnosis positive negative bmi blood",
+      "sources": {
+        "kaggle": "ok:4",
+        "huggingface": "ok:10",
+        "genai": "ok:2"
+      },
+      "meta": {
+        "raw_candidates": 16,
+        "verified_count": 9,
+        "ai_suggested_count": 1,
+        "enrichment": {
+          "attempted": 4,
+          "succeeded": 4,
+          "error_codes": []
+        },
+        "confirmed_ai_suggestions": 0
+      },
+      "outcome": "recommended",
+      "best_match": "Diabate's dataset",
+      "close_call": true,
+      "top": [
+        {
+          "name": "Diabetes Prediction Dataset",
+          "source": "kaggle",
+          "score": 78.74,
+          "compat": "medium",
+          "confidence": "medium",
+          "schema": "partial",
+          "target": "present",
+          "features": 4,
+          "depth": "detailed"
+        },
+        {
+          "name": "Diabate's dataset",
+          "source": "kaggle",
+          "score": 78.48,
+          "compat": "high",
+          "confidence": "high",
+          "schema": "partial",
+          "target": "present",
+          "features": 4,
+          "depth": "detailed"
+        },
+        {
+          "name": "PCOS DataSet",
+          "source": "kaggle",
+          "score": 73.93,
+          "compat": "medium",
+          "confidence": "medium",
+          "schema": "partial",
+          "target": "present",
+          "features": 4,
+          "depth": "detailed"
+        },
+        {
+          "name": "diabetes-readmission",
+          "source": "huggingface",
+          "score": 59.98,
+          "compat": "low",
+          "confidence": "low",
+          "schema": "partial",
+          "target": "present",
+          "features": 4,
+          "depth": "detailed"
+        },
+        {
+          "name": "NHANES (National Health and Nutrition Examination Survey)",
+          "source": "genai",
+          "score": 55.47,
+          "compat": "medium",
+          "confidence": "low",
+          "schema": "unknown",
+          "target": "unknown",
+          "features": 4,
+          "depth": "listing"
+        }
+      ]
+    }
+  },
+  {
+    "scenario": "retail_churn",
+    "status": "ok",
+    "checks_passed": 76,
+    "checks_total": 76,
+    "failures": [],
+    "summary": {
+      "query": "customer churn purchase history tenure support",
+      "sources": {
+        "kaggle": "ok:1",
+        "huggingface": "ok:10",
+        "genai": "ok:3"
+      },
+      "meta": {
+        "raw_candidates": 14,
+        "verified_count": 9,
+        "ai_suggested_count": 1,
+        "enrichment": {
+          "attempted": 3,
+          "succeeded": 3,
+          "error_codes": []
+        },
+        "confirmed_ai_suggestions": 2
+      },
+      "outcome": "recommended",
+      "best_match": "\ud83d\udecd\ufe0f E-commerce Customer Churn & Behavior Analytics",
+      "close_call": false,
+      "top": [
+        {
+          "name": "\ud83d\udecd\ufe0f E-commerce Customer Churn & Behavior Analytics",
+          "source": "kaggle",
+          "score": 62.77,
           "compat": "medium",
           "confidence": "medium",
           "schema": "unknown",
@@ -61,22 +297,44 @@
           "depth": "detailed"
         },
         {
-          "name": "Malware Detection in Network Traffic Data",
-          "source": "kaggle",
-          "score": 63.06,
-          "compat": "medium",
-          "confidence": "medium",
-          "schema": "partial",
+          "name": "Telco Customer Churn",
+          "source": "huggingface",
+          "score": 41.14,
+          "compat": "low",
+          "confidence": "low",
+          "schema": "verified",
           "target": "present",
           "features": 3,
           "depth": "detailed"
         },
         {
-          "name": "advaitnmenon network traffic data malicious activity detection",
+          "name": "IBM Watson Telco Customer Churn",
+          "source": "kaggle",
+          "score": 39.43,
+          "compat": "unknown",
+          "confidence": "low",
+          "schema": "unknown",
+          "target": "present",
+          "features": 3,
+          "depth": "detailed"
+        },
+        {
+          "name": "KKBox's Churn Prediction Challenge",
+          "source": "genai",
+          "score": 38.08,
+          "compat": "unknown",
+          "confidence": "low",
+          "schema": "unknown",
+          "target": "unknown",
+          "features": 3,
+          "depth": "listing"
+        },
+        {
+          "name": "telco customer churn2",
           "source": "huggingface",
-          "score": 54.34,
-          "compat": "medium",
-          "confidence": "medium",
+          "score": 38.02,
+          "compat": "unknown",
+          "confidence": "low",
           "schema": "unknown",
           "target": "present",
           "features": 3,
@@ -86,20 +344,20 @@
     }
   },
   {
-    "scenario": "retail_churn",
+    "scenario": "energy_forecast",
     "status": "ok",
-    "checks_passed": 70,
-    "checks_total": 70,
+    "checks_passed": 71,
+    "checks_total": 71,
     "failures": [],
     "summary": {
-      "query": "churn status yes purchase history customer",
+      "query": "hourly electricity consumption energy timestamp temperature",
       "sources": {
         "kaggle": "ok:10",
-        "huggingface": "ok:10",
-        "genai": "ok:2"
+        "huggingface": "ok:4",
+        "genai": "ok:4"
       },
       "meta": {
-        "raw_candidates": 22,
+        "raw_candidates": 18,
         "verified_count": 10,
         "ai_suggested_count": 0,
         "enrichment": {
@@ -107,16 +365,27 @@
           "succeeded": 5,
           "error_codes": []
         },
-        "confirmed_ai_suggestions": 1
+        "confirmed_ai_suggestions": 0
       },
       "outcome": "recommended",
-      "best_match": "Banking Customer Churn Prediction Dataset",
-      "close_call": false,
+      "best_match": "Synthetic Building Energy Consumption Dataset",
+      "close_call": true,
       "top": [
         {
-          "name": "Banking Customer Churn Prediction Dataset",
+          "name": "Synthetic Building Energy Consumption Dataset",
           "source": "kaggle",
-          "score": 68.3,
+          "score": 78.94,
+          "compat": "high",
+          "confidence": "high",
+          "schema": "partial",
+          "target": "present",
+          "features": 3,
+          "depth": "detailed"
+        },
+        {
+          "name": "Smart Home Energy Consumption Optimization",
+          "source": "kaggle",
+          "score": 75.83,
           "compat": "medium",
           "confidence": "medium",
           "schema": "partial",
@@ -125,42 +394,31 @@
           "depth": "detailed"
         },
         {
-          "name": "Customer Churn Prediction",
+          "name": "Smart Grid Energy Demand Forecasting",
           "source": "kaggle",
-          "score": 61.25,
+          "score": 74.52,
           "compat": "medium",
           "confidence": "medium",
-          "schema": "partial",
+          "schema": "unknown",
           "target": "present",
           "features": 3,
           "depth": "detailed"
         },
         {
-          "name": "Telco Customer Churn",
+          "name": "Ohio Weather and Electricity Demand",
           "source": "kaggle",
-          "score": 57.69,
+          "score": 74.21,
           "compat": "medium",
           "confidence": "medium",
-          "schema": "partial",
+          "schema": "unknown",
           "target": "present",
           "features": 3,
           "depth": "detailed"
         },
         {
-          "name": "Telecommunications Industry Customer churn dataset",
+          "name": "Delhi hourly power consumption (2000-2023)",
           "source": "kaggle",
-          "score": 50.14,
-          "compat": "low",
-          "confidence": "low",
-          "schema": "partial",
-          "target": "present",
-          "features": 3,
-          "depth": "detailed"
-        },
-        {
-          "name": "Large Customer Churn Analysis Dataset",
-          "source": "kaggle",
-          "score": 48.54,
+          "score": 68.74,
           "compat": "medium",
           "confidence": "medium",
           "schema": "unknown",
