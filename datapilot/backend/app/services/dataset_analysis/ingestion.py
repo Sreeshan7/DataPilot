@@ -42,11 +42,16 @@ if TYPE_CHECKING:  # pragma: no cover
 
 logger = get_logger(__name__)
 
-#: Cells treated as "no value". Compared case-insensitively after trimming. "-" and "?"
-#: are included because they are the usual placeholders in public datasets (UCI uses
-#: "?"); a genuinely literal "-" is far rarer than a placeholder one.
+#: Cells treated as "no value". Compared case-insensitively after trimming. Only tokens
+#: that are placeholders and nothing else: "?" (UCI's convention) and "-" are included
+#: because a literal one is far rarer than a placeholder.
+#:
+#: "none", "nil" and "missing" are deliberately NOT here. "None" is a real category in
+#: many datasets ("no refund", "no previous defaults"), and treating it as missing would
+#: silently erase that value (it once turned a two-valued column into a constant one).
+#: Every placeholder actually converted is reported in the ingestion warnings.
 MISSING_TOKENS = frozenset(
-    {"", "na", "n/a", "nan", "null", "none", "nil", "?", "-", "--", "missing", "#n/a", "n.a."}
+    {"", "na", "n/a", "nan", "null", "?", "-", "--", "#n/a", "n.a."}
 )
 
 _EXCEL_ERRORS = frozenset({"#DIV/0!", "#N/A", "#NAME?", "#NULL!", "#NUM!", "#REF!", "#VALUE!"})
@@ -237,9 +242,21 @@ def detect_header(rows: list[list[str]]) -> tuple[bool, Optional[str]]:
     return True, "The first row was assumed to be the header; some of its values repeat."
 
 
-def _clean_cell(value: str) -> Optional[str]:
+def _clean_cell(value: str, seen: Optional[set] = None) -> Optional[str]:
     stripped = value.strip()
-    return None if stripped.lower() in MISSING_TOKENS else stripped
+    if stripped.lower() in MISSING_TOKENS:
+        if seen is not None and stripped:
+            seen.add(stripped)
+        return None
+    return stripped
+
+
+def _placeholder_warning(seen: set) -> Optional[str]:
+    """Name the non-empty placeholders that were read as missing, so nothing is silent."""
+    if not seen:
+        return None
+    listed = ", ".join(repr(t) for t in sorted(seen, key=str.lower)[:10])
+    return f"These placeholder values were read as missing: {listed}."
 
 
 def parse_csv(
@@ -346,6 +363,7 @@ def _read_rows(
     rows_read = malformed = 0
     blank = blank_in_head
     truncated = False
+    placeholders: set[str] = set()
 
     def consume(row: list[str]) -> bool:
         nonlocal rows_read, malformed, blank
@@ -358,7 +376,7 @@ def _read_rows(
                 malformed += 1
             row = (row + [""] * ncols)[:ncols]
         for index in range(ncols):
-            columns[index].append(_clean_cell(row[index]))
+            columns[index].append(_clean_cell(row[index], placeholders))
         rows_read += 1
         return rows_read < row_limit
 
@@ -382,6 +400,8 @@ def _read_rows(
 
     if blank:
         warnings.append(f"{blank} blank row(s) were skipped.")
+    if note := _placeholder_warning(placeholders):
+        warnings.append(note)
     if malformed:
         share = malformed / max(1, rows_read + malformed)
         warnings.append(
@@ -462,7 +482,7 @@ def check_xlsx_container(path: str, size_bytes: int, settings: Settings) -> None
         ) from exc
 
 
-def _excel_cell(value: Any) -> tuple[Any, bool]:
+def _excel_cell(value: Any, seen: Optional[set] = None) -> tuple[Any, bool]:
     """(cleaned value, was_error_cell)."""
     if value is None:
         return None, False
@@ -470,7 +490,11 @@ def _excel_cell(value: Any) -> tuple[Any, bool]:
         stripped = value.strip()
         if stripped in _EXCEL_ERRORS:
             return None, True
-        return (None if stripped.lower() in MISSING_TOKENS else stripped), False
+        if stripped.lower() in MISSING_TOKENS:
+            if seen is not None and stripped:
+                seen.add(stripped)
+            return None, False
+        return stripped, False
     return value, False
 
 
@@ -616,6 +640,7 @@ def _read_sheet(
     columns: list[list[Any]] = [[] for _ in range(ncols)]
     rows_read = blank = error_cells = 0
     truncated = False
+    placeholders: set[str] = set()
 
     def consume(row: tuple[Any, ...]) -> bool:
         nonlocal rows_read, blank, error_cells
@@ -627,7 +652,7 @@ def _read_sheet(
             return True
         cleaned = []
         for value in cells:
-            cell, was_error = _excel_cell(value)
+            cell, was_error = _excel_cell(value, placeholders)
             error_cells += was_error
             cleaned.append(cell)
         for index, value in enumerate(cleaned):
@@ -654,6 +679,8 @@ def _read_sheet(
         raise IngestionError(ErrorCode.FILE_NO_DATA_ROWS, "The sheet has a header but no data rows.")
     if blank:
         warnings.append(f"{blank} blank row(s) were skipped.")
+    if note := _placeholder_warning(placeholders):
+        warnings.append(note)
     if error_cells:
         warnings.append(f"{error_cells} cell(s) contained spreadsheet errors and were treated as missing.")
     if truncated:

@@ -283,6 +283,22 @@ class TestCsvBasics:
         assert list(table.frame["a"]) == ["1", None, None, "4"]
         assert list(table.frame["b"]) == [None, None, None, "ok"]
 
+    def test_none_nil_and_missing_are_real_values_not_placeholders(self, tmp_path):
+        """"None" is a genuine category ("no refund"); erasing it once turned a
+        two-valued column into a constant one."""
+        table = csv_parse(tmp_path, "refund,note\nnone,missing\nrefunded,nil\nNone,ok\n")
+        assert list(table.frame["refund"]) == ["none", "refunded", "None"]
+        assert list(table.frame["note"]) == ["missing", "nil", "ok"]
+
+    def test_the_placeholders_that_were_converted_are_named(self, tmp_path):
+        table = csv_parse(tmp_path, "a,b\n1,NA\n?,null\n3,x\n")
+        warning = next(w for w in table.info.warnings if "placeholder" in w)
+        assert "'NA'" in warning and "'?'" in warning and "'null'" in warning
+
+    def test_no_placeholder_warning_when_none_were_converted(self, tmp_path):
+        table = csv_parse(tmp_path, "a,b\n1,2\n3,4\n")
+        assert not any("placeholder" in w for w in table.info.warnings)
+
     def test_whitespace_around_values_is_trimmed(self, tmp_path):
         assert list(csv_parse(tmp_path, "a\n  hello  \n").frame["a"]) == ["hello"]
 
@@ -515,6 +531,7 @@ class TestXlsx:
         path = make_xlsx(tmp_path, {"S": [["a", "b"], [1, None], ["NA", "x"], [3, "?"]]})
         table = xlsx_parse(path)
         assert list(table.frame["a"]) == [1, None, 3] and list(table.frame["b"]) == [None, "x", None]
+        assert any("placeholder" in w and "'NA'" in w for w in table.info.warnings)
 
     def test_mixed_types_in_a_column_are_kept_for_the_profiler(self, tmp_path):
         path = make_xlsx(tmp_path, {"S": [["v"], [1], ["two"], [3.5], [datetime(2024, 1, 1)]]})
