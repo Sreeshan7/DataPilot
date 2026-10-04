@@ -108,14 +108,20 @@ class StoredUpload:
 
 
 @contextmanager
-def store_upload(stream: BinaryIO, max_bytes: int) -> Iterator[StoredUpload]:
+def store_upload(stream: BinaryIO, max_bytes: int, suffix: str = ".upload") -> Iterator[StoredUpload]:
     """Copy ``stream`` to a randomly named temporary file, enforcing ``max_bytes``.
+
+    ``suffix`` is the already-validated extension of the upload ('.xlsx' or '.csv'): some
+    libraries (openpyxl) decide how to read a file from its name. It is never taken from the
+    user's text, only from the allowlist in :data:`SUPPORTED_EXTENSIONS`.
 
     The cap is checked per chunk as data arrives, so a hostile upload is cut off at the
     limit and never held in memory. The file is deleted when the block exits, whether
     it succeeds or raises.
     """
-    fd, path = tempfile.mkstemp(prefix="datapilot_", suffix=".upload")
+    if suffix not in {".upload", *SUPPORTED_EXTENSIONS}:
+        raise ValueError("an upload suffix must come from the extension allowlist")
+    fd, path = tempfile.mkstemp(prefix="datapilot_", suffix=suffix)
     stored = StoredUpload(path, 0)
     try:
         total = 0

@@ -699,3 +699,24 @@ class TestDispatch:
         path = make_xlsx(tmp_path, {"A": [["x"], [1]], "B": [["y"], [2]]})
         table = parse_file(path, "a.xlsx", os.path.getsize(path), settings(), sheet_name="B")
         assert table.info.sheet_name == "B"
+
+
+class TestUploadSuffix:
+    def test_the_stored_file_keeps_the_validated_extension(self):
+        with store_upload(io.BytesIO(b"x"), 10, ".xlsx") as stored:
+            assert stored.path.endswith(".xlsx")
+        with store_upload(io.BytesIO(b"x"), 10, ".csv") as stored:
+            assert stored.path.endswith(".csv")
+
+    @pytest.mark.parametrize("suffix", [".exe", ".py", "", "../../x", ".xlsx/../../etc"])
+    def test_a_suffix_outside_the_allowlist_is_refused(self, suffix):
+        with pytest.raises(ValueError):
+            with store_upload(io.BytesIO(b"x"), 10, suffix):
+                pass  # pragma: no cover
+
+    def test_an_xlsx_upload_is_readable_through_a_stored_file(self, tmp_path):
+        """openpyxl chooses how to read a file from its name; this is what the API relies on."""
+        path = make_xlsx(tmp_path, {"S": [["a"], [1], [2]]})
+        with store_upload(open(path, "rb"), 10_000_000, ".xlsx") as stored:
+            table = parse_xlsx(stored.path, "x.xlsx", stored.size_bytes, settings())
+        assert table.info.rows_read == 2

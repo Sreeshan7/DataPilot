@@ -209,10 +209,18 @@ def _structural(
 
 
 def _semantic(column: TypedColumn, position: int, n_columns: int) -> tuple[float, list[EvidenceItem]]:
+    return semantic_name_score(column.name, position, n_columns)
+
+
+def semantic_name_score(name: str, position: int, n_columns: int) -> tuple[float, list[EvidenceItem]]:
+    """What a column's *name and position* say about it being a target.
+
+    Needs no data, so it is also what a schema-only dataset (known from a registry, never
+    parsed) can be judged on. Every point is a ``HEURISTIC``.
+    """
     score = 0.0
     evidence: list[EvidenceItem] = []
     heuristic = EvidenceLevel.HEURISTIC
-    name = column.name
     if name in CONVENTIONAL_EXACT:
         score += 3.0
         evidence.append(EvidenceItem(statement=f"is named '{name}', a conventional name for a target", level=heuristic))
