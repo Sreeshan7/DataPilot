@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.api.v1.datasets import router as datasets_router
+from app.api.v1.intent import router as intent_router
 from app.api.v1.project_analysis import router as project_analysis_router
 from app.core.config import get_settings
 from app.core.logging_config import get_logger, setup_logging
@@ -68,6 +69,7 @@ def create_app() -> FastAPI:
 
     app.include_router(project_analysis_router, prefix=settings.api_v1_prefix)
     app.include_router(datasets_router, prefix=settings.api_v1_prefix)
+    app.include_router(intent_router, prefix=settings.api_v1_prefix)
 
     @app.get("/health", response_model=HealthResponse, tags=["Health"])
     async def health_check() -> HealthResponse:
