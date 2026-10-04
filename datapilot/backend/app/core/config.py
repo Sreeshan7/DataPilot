@@ -46,6 +46,26 @@ class Settings(BaseSettings):
     dataset_discovery_genai_max_candidates: int = 8
     dataset_discovery_max_query_terms: int = 6
 
+    # --- Phase 3B: metadata enrichment ---------------------------------------
+    # Kaggle's list endpoint returns an empty description for every dataset, so a
+    # first-pass ranking only sees a title, subtitle and tags. The top candidates
+    # are therefore re-read from the per-dataset endpoints (two calls each) and
+    # re-ranked. Bounded by top_k so the extra traffic is predictable.
+    dataset_enrichment_enabled: bool = True
+    dataset_enrichment_top_k: int = 5
+
+    # --- Phase 3C: registry verification of AI suggestions -------------------
+    # At most this many unconfirmed AI suggestions are looked up by name in the
+    # verified registries. A hit is merged (the registry record wins); a miss
+    # leaves the suggestion unverified. 0 disables the lookups.
+    dataset_verification_lookups: int = 3
+
+    # --- Phase 3C: Hugging Face Hub (public, no credentials) -----------------
+    huggingface_enabled: bool = True
+    huggingface_api_base_url: str = "https://huggingface.co/api"
+    huggingface_request_timeout: float = 20.0
+    huggingface_max_limit: int = 50
+
     # --- Phase 2: deterministic ranking weights ----------------------------
     # Three groups, and the split is the point: requirement factors own 70 of the
     # 100 points, publisher-side signals own 15, trust owns 15. Relevance

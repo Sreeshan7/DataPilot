@@ -23,6 +23,7 @@ Hugging Face or research-paper discovery means registering one more
 
 from __future__ import annotations
 
+import asyncio
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -32,6 +33,7 @@ from app.core.config import Settings, get_settings
 from app.core.logging_config import get_logger
 from app.schemas.dataset import (
     DatasetCandidate,
+    MetadataDepth,
     SourceOutcome,
     SourceSearchRequest,
     SourceStatus,
@@ -39,7 +41,7 @@ from app.schemas.dataset import (
 )
 from app.schemas.project import ProjectAnalysisData, ProjectAnalysisRequest
 from app.services.datasets.base import DatasetSource, DatasetSourceError, redact_secrets
-from app.services.datasets.deduplicator import DatasetDeduplicator
+from app.services.datasets.deduplicator import DatasetDeduplicator, name_token_key
 from app.services.datasets.query_builder import build_dataset_search_query
 from app.services.datasets.ranking import DatasetRankingEngine
 from app.services.project_analyzer import ProjectAnalyzer
@@ -57,6 +59,10 @@ class DatasetDiscoveryResult:
     requirements: Optional[ProjectAnalysisData] = None
     raw_candidate_count: int = 0
     duration_ms: float = 0.0
+    enrichment_attempted: int = 0
+    enrichment_succeeded: int = 0
+    enrichment_error_codes: list[str] = field(default_factory=list)
+    confirmed_suggestions: int = 0
 
     def count_by_source_type(self, source_type: SourceType) -> int:
         return sum(1 for c in self.candidates if c.source_type is source_type)
@@ -215,12 +221,24 @@ class DatasetDiscoveryService:
 
         # A fresh deduplicator per run: the index holds candidate references, so
         # reusing one across requests would leak results between callers.
-        deduplicated = DatasetDeduplicator().deduplicate(collected)
+        deduplicator = DatasetDeduplicator()
+        deduplicated = deduplicator.deduplicate(collected)
+
+        confirmed = 0
+        if requirements is not None:
+            deduplicated, confirmed = await self._confirm_suggestions(
+                deduplicated, deduplicator, verified_sources, rid
+            )
+
         ranked = (
             self._ranking.rank(deduplicated, requirements)
             if requirements is not None
             else list(deduplicated)
         )
+
+        enrichment = _EnrichmentStats()
+        if requirements is not None:
+            ranked, enrichment = await self._enrich_top(ranked, requirements, rid)
         final = ranked[:limit]
 
         duration_ms = round((time.monotonic() - start) * 1000, 2)
@@ -254,7 +272,163 @@ class DatasetDiscoveryService:
             requirements=requirements,
             raw_candidate_count=raw_count,
             duration_ms=duration_ms,
+            enrichment_attempted=enrichment.attempted,
+            enrichment_succeeded=enrichment.succeeded,
+            enrichment_error_codes=sorted(set(enrichment.error_codes)),
+            confirmed_suggestions=confirmed,
         )
+
+    # ------------------------------------------------------------------
+    # Phase 3B: enrichment
+    # ------------------------------------------------------------------
+
+    async def _enrich_top(
+        self,
+        ranked: list[DatasetCandidate],
+        requirements: ProjectAnalysisData,
+        rid: str,
+    ) -> tuple[list[DatasetCandidate], "_EnrichmentStats"]:
+        """Re-read the best verified candidates from their registry, then re-rank.
+
+        A registry listing is often too thin to judge a dataset (Kaggle's list
+        endpoint returns no description at all), so a first-pass ranking says more
+        about titles than about data. Only the top ``dataset_enrichment_top_k``
+        candidates are enriched, which keeps the extra traffic bounded and spends
+        it where it can change the answer.
+
+        An enrichment failure never fails the request: that candidate stays at
+        listing depth and says so.
+        """
+        stats = _EnrichmentStats()
+        top_k = self._settings.dataset_enrichment_top_k
+        if not self._settings.dataset_enrichment_enabled or top_k <= 0:
+            return ranked, stats
+
+        by_name = {source.name: source for source in self._sources}
+        targets: list[tuple[DatasetCandidate, DatasetSource]] = []
+        for candidate in ranked:
+            if len(targets) >= top_k:
+                break
+            source = by_name.get(candidate.source)
+            if (
+                candidate.source_type is SourceType.VERIFIED_EXTERNAL
+                and source is not None
+                and source.supports_enrichment
+                and candidate.metadata_depth is MetadataDepth.LISTING
+            ):
+                targets.append((candidate, source))
+        if not targets:
+            return ranked, stats
+
+        stats.attempted = len(targets)
+        outcomes = await asyncio.gather(
+            *(self._enrich_one(candidate, source, rid) for candidate, source in targets)
+        )
+
+        replacements: dict[str, DatasetCandidate] = {}
+        for (candidate, _), (enriched, error_code) in zip(targets, outcomes):
+            if error_code:
+                stats.error_codes.append(error_code)
+            elif enriched is not candidate:
+                replacements[candidate.id] = enriched
+        stats.succeeded = len(replacements)
+        if not replacements:
+            return ranked, stats
+
+        updated = [replacements.get(candidate.id, candidate) for candidate in ranked]
+        return self._ranking.rank(updated, requirements), stats
+
+    async def _enrich_one(
+        self, candidate: DatasetCandidate, source: DatasetSource, rid: str
+    ) -> tuple[DatasetCandidate, Optional[str]]:
+        try:
+            return await source.enrich(candidate), None
+        except DatasetSourceError as exc:
+            logger.warning("[%s] Enrichment of %s failed: %s", rid, candidate.id, exc.code)
+            return candidate, exc.code
+        except Exception as exc:
+            logger.error(
+                "[%s] Enrichment of %s raised %s", rid, candidate.id, type(exc).__name__
+            )
+            return candidate, "DATASET_SOURCE_UNEXPECTED_ERROR"
+
+    # ------------------------------------------------------------------
+    # Phase 3C: registry confirmation of AI suggestions
+    # ------------------------------------------------------------------
+
+    async def _confirm_suggestions(
+        self,
+        candidates: list[DatasetCandidate],
+        deduplicator: DatasetDeduplicator,
+        verified_sources: Sequence[DatasetSource],
+        rid: str,
+    ) -> tuple[list[DatasetCandidate], int]:
+        """Look a few AI suggestions up by name in the verified registries.
+
+        A suggestion becomes a registry record only when a registry returns a
+        dataset whose *identifying name tokens are identical* to the suggestion's.
+        The registry's record then wins the merge, and the model's own claims are
+        kept apart as ``ai_suggested_claims``. A near-match, a miss, or a failed
+        lookup leaves the suggestion unverified: confirming the wrong dataset is
+        worse than confirming none.
+
+        Bounded by ``dataset_verification_lookups`` suggestions, well-known and
+        higher-confidence ones first, so the extra requests stay predictable.
+        """
+        budget = self._settings.dataset_verification_lookups
+        if budget <= 0 or not verified_sources:
+            return candidates, 0
+
+        pending = [c for c in candidates if c.source_type is SourceType.AI_SUGGESTED]
+        pending.sort(
+            key=lambda c: (
+                0 if c.is_well_known else 1,
+                -float(c.confidence_score or 0.0),
+                c.name.lower(),
+            )
+        )
+
+        result = list(candidates)
+        confirmed = 0
+        for suggestion in pending[:budget]:
+            key = name_token_key(suggestion.name)
+            if not key:
+                continue
+            for source in verified_sources:
+                if not source.is_configured:
+                    continue
+                try:
+                    hits = await source.search(
+                        SourceSearchRequest(query=suggestion.name, limit=5)
+                    )
+                except DatasetSourceError as exc:
+                    logger.info(
+                        "[%s] Confirmation lookup on %s failed: %s", rid, source.name, exc.code
+                    )
+                    continue
+                except Exception as exc:
+                    logger.error(
+                        "[%s] Confirmation lookup on %s raised %s",
+                        rid,
+                        source.name,
+                        type(exc).__name__,
+                    )
+                    continue
+                match = next((h for h in hits if name_token_key(h.name) == key), None)
+                if match is None:
+                    continue
+                merged = deduplicator.absorb(match)
+                if merged is None or merged is suggestion:
+                    break
+                position = next(i for i, c in enumerate(result) if c is suggestion)
+                if any(c is merged for c in result):
+                    # The registry record was already in the list; drop the duplicate.
+                    del result[position]
+                else:
+                    result[position] = merged
+                confirmed += 1
+                break
+        return result, confirmed
 
     def _partition_sources(
         self,
@@ -323,3 +497,10 @@ class DatasetDiscoveryService:
             )
         outcome.duration_ms = round((time.monotonic() - start) * 1000, 2)
         return outcome, candidates if outcome.status is SourceStatus.OK else []
+
+
+@dataclass
+class _EnrichmentStats:
+    attempted: int = 0
+    succeeded: int = 0
+    error_codes: list[str] = field(default_factory=list)

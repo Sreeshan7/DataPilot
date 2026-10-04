@@ -246,6 +246,44 @@ class TestRecommendEndpoint:
         assert "ranking_weights" in body
         assert body["meta"]["verified_count"] == 1
 
+    def test_every_recommendation_carries_its_intelligence(self, client, stub):
+        test_client = client(stub)
+        body = test_client.post(
+            "/api/v1/datasets/recommend",
+            json={"description": "Predict student performance from attendance and study hours"},
+        ).json()
+        intel = body["recommendations"][0]["intelligence"]
+        assert intel["candidate_id"] == body["recommendations"][0]["dataset"]["id"]
+        assert intel["schema_state"] in {"verified", "partial", "unknown"}
+        assert intel["target_analysis"]["state"] in {
+            "present", "derivable", "unknown", "incompatible"
+        }
+        coverage = intel["feature_coverage"]
+        assert coverage["required_count"] == (
+            len(coverage["matched"]) + len(coverage["unknown"]) + len(coverage["missing"])
+        )
+        assert intel["compatibility"]["overall"] in {"high", "medium", "low", "unknown"}
+        assert set(intel["explanation"]) >= {
+            "why_recommended", "what_matches", "what_is_unknown", "what_is_missing",
+            "what_is_verified", "what_is_inferred", "risks", "limitations",
+        }
+
+    def test_meta_reports_enrichment_and_confirmation(self, client, stub):
+        test_client = client(stub)
+        meta = test_client.post(
+            "/api/v1/datasets/recommend",
+            json={"description": "Predict student performance from attendance and study hours"},
+        ).json()["meta"]
+        assert meta["enrichment"] == {"attempted": 0, "succeeded": 0, "error_codes": []}
+        assert meta["confirmed_ai_suggestions"] == 0
+
+    def test_the_response_never_contains_a_credential(self, client, stub):
+        text = client(stub).post(
+            "/api/v1/datasets/recommend",
+            json={"description": "Predict student performance from attendance and study hours"},
+        ).text
+        assert "KGAT_" not in text and "AIza" not in text
+
     def test_missing_description_is_422(self, client, stub):
         test_client = client(stub)
         response = test_client.post("/api/v1/datasets/recommend", json={})

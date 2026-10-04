@@ -49,6 +49,20 @@ class VerificationStatus(str, Enum):
     UNVERIFIED = "unverified"
 
 
+class MetadataDepth(str, Enum):
+    """How much of a registry's own record was read for this candidate.
+
+    ``LISTING`` - only what the registry's search results carry. For Kaggle that is
+    a title, subtitle, tags and counters; the description field is empty there.
+    ``DETAILED`` - the per-dataset record was fetched, so the owner's full
+    description and file list are present. Same authority as the listing (the
+    registry published both); there is simply more of it.
+    """
+
+    LISTING = "listing"
+    DETAILED = "detailed"
+
+
 class SourceStatus(str, Enum):
     """Per-source outcome recorded in a discovery result."""
 
@@ -368,7 +382,16 @@ class DatasetCandidate(BaseModel):
         None, description="Total dataset size in bytes, when published."
     )
     file_count: Optional[int] = None
-    file_types: list[str] = Field(default_factory=list)
+    file_types: list[str] = Field(
+        default_factory=list, description="Distinct file extensions, e.g. '.csv'."
+    )
+    file_names: list[str] = Field(
+        default_factory=list, description="Published file names (capped), when known."
+    )
+    metadata_depth: MetadataDepth = Field(
+        MetadataDepth.LISTING,
+        description="Whether the registry's per-dataset record was read, or only its listing.",
+    )
 
     download_count: Optional[int] = None
     vote_count: Optional[int] = None
@@ -513,6 +536,7 @@ class DatasetCandidate(BaseModel):
                     setattr(primary, field_name, getattr(secondary, field_name))
             primary.tags = _merge_unique(primary.tags + secondary.tags)
             primary.file_types = _merge_unique(primary.file_types + secondary.file_types)
+            primary.file_names = _merge_unique(primary.file_names + secondary.file_names)
             primary.task_types = _merge_unique(primary.task_types + secondary.task_types)
 
         # Advisory fields describe the model's opinion of the project, not the
@@ -732,30 +756,3 @@ class DatasetRecommendationRequest(BaseModel):
         if v is None:
             return v
         return " ".join(v.split()).strip()
-
-
-class RankedDataset(BaseModel):
-    """One entry of the ranked recommendation list."""
-
-    rank: int = Field(..., ge=1)
-    dataset: DatasetCandidate
-    ranking_score: float = Field(..., ge=0.0, le=100.0)
-    verification_status: VerificationStatus
-    source_type: SourceType
-    reasons: list[str] = Field(default_factory=list)
-    ranking_factors: list[RankingFactor] = Field(default_factory=list)
-
-
-class DatasetRecommendationResponse(BaseModel):
-    """Body of ``POST /api/v1/datasets/recommend``."""
-
-    success: bool = True
-    request_id: str
-    api_version: str = "v1"
-    project_requirements: ProjectAnalysisData
-    search_query: str
-    count: int
-    recommendations: list[RankedDataset]
-    sources: list[SourceOutcome] = Field(default_factory=list)
-    ranking_weights: dict[str, float] = Field(default_factory=dict)
-    meta: dict[str, Any] = Field(default_factory=dict)

@@ -91,24 +91,12 @@ class DatasetDeduplicator:
                 unique.append(candidate)
                 continue
 
-            merged = existing.merge(candidate)
-            # Drop the index entries that pointed at the losing record, then
-            # re-index the survivor. This must happen even when the survivor is
-            # the same object we started with, otherwise a third duplicate
-            # could no longer be matched against it.
-            self._reindex(existing, merged)
-            self._index(merged)
+            merged = self._merge_into(existing, candidate)
             if merged is not existing:
                 # The verified record won, so it must take the verified
                 # record's place in the output ordering.
                 position = next(i for i, c in enumerate(unique) if c is existing)
                 unique[position] = merged
-            logger.debug(
-                "Merged candidate %s into %s (%d sources)",
-                candidate.id,
-                merged.id,
-                len(merged.duplicate_sources) + 1,
-            )
 
         if len(unique) < len(candidates):
             logger.info(
@@ -117,6 +105,39 @@ class DatasetDeduplicator:
                 len(unique),
             )
         return unique
+
+    def absorb(self, candidate: DatasetCandidate) -> Optional[DatasetCandidate]:
+        """Merge ``candidate`` into an already-indexed record, if it duplicates one.
+
+        Unlike :meth:`deduplicate`, this may be called after a batch has been
+        processed, so a later arrival (for example a registry record found by
+        looking up an AI suggestion by name) can still be merged into the batch.
+        Returns the surviving record, which is ``candidate`` itself when the
+        verified record wins, or ``None`` when ``candidate`` duplicates nothing
+        and has not been indexed.
+        """
+        existing = self._find_match(candidate)
+        if existing is None:
+            return None
+        return self._merge_into(existing, candidate)
+
+    def _merge_into(
+        self, existing: DatasetCandidate, candidate: DatasetCandidate
+    ) -> DatasetCandidate:
+        merged = existing.merge(candidate)
+        # Drop the index entries that pointed at the losing record, then re-index
+        # the survivor. This must happen even when the survivor is the same
+        # object we started with, otherwise a third duplicate could no longer be
+        # matched against it.
+        self._reindex(existing, merged)
+        self._index(merged)
+        logger.debug(
+            "Merged candidate %s into %s (%d sources)",
+            candidate.id,
+            merged.id,
+            len(merged.duplicate_sources) + 1,
+        )
+        return merged
 
     def reset(self) -> None:
         self._source_key_index.clear()

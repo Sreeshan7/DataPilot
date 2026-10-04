@@ -22,6 +22,7 @@ from app.core.logging_config import get_logger
 from app.schemas.dataset import (
     DatasetCandidate,
     LLMDiscoveredCandidate,
+    MetadataDepth,
     SourceType,
     VerificationStatus,
 )
@@ -413,6 +414,77 @@ def normalize_kaggle_records(
             candidates.append(candidate)
     logger.debug("Normalized %d/%d Kaggle records", len(candidates), len(raw_items))
     return candidates
+
+
+#: Upper bound on an owner-written description kept on a candidate. Long enough
+#: for a full column table, short enough that one dataset cannot dominate a
+#: response or the ranker's text matching.
+MAX_DESCRIPTION_CHARS = 8000
+
+#: Published file names retained per candidate; the count is recorded separately.
+MAX_FILE_NAMES = 20
+
+
+def _file_extension(name: str) -> Optional[str]:
+    if "." not in name:
+        return None
+    ext = "." + name.rsplit(".", 1)[-1].strip().lower()
+    return ext if 1 < len(ext) <= 12 else None
+
+
+def apply_kaggle_detail(
+    candidate: DatasetCandidate, view: Any, files: Any
+) -> DatasetCandidate:
+    """Return a copy of ``candidate`` enriched with Kaggle's per-dataset record.
+
+    ``view`` is the ``/datasets/view/{ref}`` payload and ``files`` the
+    ``/datasets/list/{ref}`` payload. Either may be missing or malformed: each is
+    optional, and a candidate with neither is returned unchanged at
+    ``LISTING`` depth.
+
+    Only what Kaggle states is added. The owner's description is the same kind of
+    statement the listing's subtitle was, so it carries the same authority; file
+    extensions are read straight off the published file names. Nothing here is
+    inferred, and nothing about the *contents* of a file is claimed.
+    """
+    updates: dict[str, Any] = {}
+
+    if isinstance(view, dict):
+        subtitle = normalize_text(_kaggle_field(view, "subtitle"))
+        body = normalize_text(_kaggle_field(view, "description"))
+        parts = [p for p in (subtitle, body) if p]
+        if len(parts) == 2 and parts[0].lower() in parts[1].lower():
+            parts = [parts[1]]
+        text = ". ".join(parts) if len(parts) == 2 else (parts[0] if parts else None)
+        if text:
+            updates["description"] = text[:MAX_DESCRIPTION_CHARS]
+        if candidate.size_bytes is None:
+            updates["size_bytes"] = coerce_int(_kaggle_field(view, "totalBytes"))
+        if candidate.license is None:
+            updates["license"] = normalize_text(_kaggle_field(view, "licenseName"))
+
+    entries = files.get("datasetFiles") if isinstance(files, dict) else None
+    if isinstance(entries, list):
+        names = [
+            n
+            for n in (
+                normalize_text(e.get("name")) for e in entries if isinstance(e, dict)
+            )
+            if n
+        ]
+        if names:
+            extensions = sorted({e for e in (_file_extension(n) for n in names) if e})
+            updates["file_count"] = len(names)
+            updates["file_names"] = names[:MAX_FILE_NAMES]
+            updates["file_types"] = extensions
+
+    updates = {k: v for k, v in updates.items() if v is not None}
+    if not updates:
+        return candidate
+
+    updates["metadata_depth"] = MetadataDepth.DETAILED
+    enriched = candidate.model_copy(update=updates, deep=True)
+    return _with_evidence(enriched)
 
 
 # ---------------------------------------------------------------------------

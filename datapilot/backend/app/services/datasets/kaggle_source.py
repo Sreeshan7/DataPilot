@@ -13,6 +13,7 @@ placed in a query string.
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any, ClassVar, Optional
 
 import httpx
@@ -20,11 +21,12 @@ import httpx
 from app.core.logging_config import get_logger
 from app.schemas.dataset import DatasetCandidate, SourceSearchRequest, SourceType
 from app.services.datasets.base import DatasetSource, DatasetSourceError
-from app.services.datasets.normalizer import normalize_kaggle_records
+from app.services.datasets.normalizer import apply_kaggle_detail, normalize_kaggle_records
 
 logger = get_logger(__name__)
 
 _LIST_PATH = "/datasets/list"
+_VIEW_PATH = "/datasets/view"
 
 
 class KaggleDatasetSource(DatasetSource):
@@ -91,8 +93,13 @@ class KaggleDatasetSource(DatasetSource):
         return candidates[:limit]
 
     async def _fetch_page(self, client: httpx.AsyncClient, query: str, page: int) -> Any:
-        url = f"{self._settings.kaggle_api_base_url.rstrip('/')}{_LIST_PATH}"
-        params = {"search": query, "page": page}
+        return await self._get_json(client, _LIST_PATH, {"search": query, "page": page})
+
+    async def _get_json(
+        self, client: httpx.AsyncClient, path: str, params: Optional[dict] = None
+    ) -> Any:
+        """One authenticated GET with every failure mapped to a sanitized error."""
+        url = f"{self._settings.kaggle_api_base_url.rstrip('/')}{path}"
         headers = {"Accept": "application/json"}
         token = self._settings.kaggle_api_token
         if token:
@@ -118,6 +125,11 @@ class KaggleDatasetSource(DatasetSource):
                 code="KAGGLE_AUTHENTICATION_ERROR",
                 message="Kaggle rejected the configured credentials.",
             )
+        if status == 404:
+            raise DatasetSourceError(
+                code="KAGGLE_NOT_FOUND",
+                message="Kaggle has no public record for that dataset.",
+            )
         if status == 429:
             raise DatasetSourceError(
                 code="KAGGLE_RATE_LIMITED",
@@ -142,6 +154,44 @@ class KaggleDatasetSource(DatasetSource):
                 code="KAGGLE_INVALID_RESPONSE",
                 message="Kaggle returned a response that is not valid JSON.",
             ) from exc
+
+    # -- enrichment --------------------------------------------------------
+
+    @property
+    def supports_enrichment(self) -> bool:
+        return True
+
+    async def enrich(self, candidate: DatasetCandidate) -> DatasetCandidate:
+        """Read the owner's full description and the file list for one dataset.
+
+        Two requests, issued together. The file list is a bonus: if only that call
+        fails the description is still applied, because partial detail is better
+        than none and the failure is not about the dataset's existence. If the
+        description call fails the error is raised so the caller keeps the
+        listing-level candidate and records the failure.
+        """
+        ref = (candidate.source_id or "").strip().strip("/")
+        if "/" not in ref:
+            raise DatasetSourceError(
+                code="DATASET_SOURCE_INVALID_ID",
+                message="Kaggle dataset refs must be in 'owner/slug' form.",
+            )
+        async with self._acquire_client() as client:
+            view, files = await asyncio.gather(
+                self._get_json(client, f"{_VIEW_PATH}/{ref}"),
+                self._get_json(client, f"{_LIST_PATH}/{ref}"),
+                return_exceptions=True,
+            )
+        if isinstance(view, BaseException):
+            if isinstance(view, DatasetSourceError):
+                raise view
+            raise DatasetSourceError(
+                code="KAGGLE_UNAVAILABLE", message="Kaggle could not be reached."
+            ) from view
+        if isinstance(files, BaseException):
+            logger.info("Kaggle file list unavailable for %s", ref)
+            files = None
+        return apply_kaggle_detail(candidate, view, files)
 
     # -- metadata ----------------------------------------------------------
 

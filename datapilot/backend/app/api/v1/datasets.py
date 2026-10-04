@@ -15,11 +15,10 @@ from fastapi import APIRouter, HTTPException, Request
 from app.core.logging_config import get_logger
 from app.schemas.dataset import (
     DatasetRecommendationRequest,
-    DatasetRecommendationResponse,
     DatasetSearchRequest,
     DatasetSearchResponse,
-    RankedDataset,
 )
+from app.schemas.recommendation import DatasetRecommendationResponse, RankedDataset
 from app.schemas.project import (
     MAX_PROJECT_DESCRIPTION_WORDS,
     ErrorCode,
@@ -29,6 +28,7 @@ from app.schemas.project import (
 )
 from app.services.datasets.base import DatasetSourceError, redact_secrets
 from app.services.datasets.discovery import DatasetDiscoveryService
+from app.services.datasets.intelligence import build_intelligence_report
 from app.services.llm_service import LLMServiceError
 
 logger = get_logger(__name__)
@@ -310,6 +310,7 @@ async def recommend_datasets(
             ).model_dump(),
         ) from exc
 
+    intelligence = build_intelligence_report(result.candidates, requirements)
     recommendations = [
         RankedDataset(
             rank=index,
@@ -319,8 +320,11 @@ async def recommend_datasets(
             source_type=candidate.source_type,
             reasons=candidate.ranking_reasons,
             ranking_factors=candidate.ranking_factors,
+            intelligence=record,
         )
-        for index, candidate in enumerate(result.candidates, start=1)
+        for index, (candidate, record) in enumerate(
+            zip(result.candidates, intelligence), start=1
+        )
     ]
 
     return DatasetRecommendationResponse(
@@ -341,6 +345,12 @@ def _meta(result: Any) -> dict[str, Any]:
         "verified_count": result.verified_count,
         "ai_suggested_count": result.unverified_count,
         "processing_time_ms": result.duration_ms,
+        "enrichment": {
+            "attempted": result.enrichment_attempted,
+            "succeeded": result.enrichment_succeeded,
+            "error_codes": result.enrichment_error_codes,
+        },
+        "confirmed_ai_suggestions": result.confirmed_suggestions,
         "source_types": {
             "verified_external": "Real dataset published by an external registry",
             "ai_suggested": "Model suggestion, not yet confirmed externally",

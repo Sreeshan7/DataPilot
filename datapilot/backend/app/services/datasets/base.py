@@ -124,6 +124,22 @@ class DatasetSource(abc.ABC):
             message=f"Source '{self.name}' does not implement metadata lookup.",
         )
 
+    @property
+    def supports_enrichment(self) -> bool:
+        """Whether :meth:`enrich` can read more of the registry's own record."""
+        return False
+
+    async def enrich(self, candidate: DatasetCandidate) -> DatasetCandidate:
+        """Read the registry's per-dataset record for an already-listed candidate.
+
+        Returns a copy carrying whatever the registry additionally published; the
+        input is never mutated. Implementations must only add what the registry
+        states, never infer it, and raise :class:`DatasetSourceError` when the
+        record cannot be read so the caller can keep the listing-level candidate.
+        The default implementation reads nothing.
+        """
+        return candidate
+
     async def healthcheck(self) -> bool:
         """Cheap reachability probe used by the readiness endpoint."""
         return True
