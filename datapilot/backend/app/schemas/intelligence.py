@@ -43,7 +43,7 @@ from typing import Optional
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from app.schemas.dataset import MatchQuality, MatchStatus, ProjectAnalysisData
+from app.schemas.dataset import MatchQuality, MatchStatus
 
 # ---------------------------------------------------------------------------
 # Evidence
@@ -55,10 +55,12 @@ class EvidenceLayer(str, Enum):
 
     ``SOURCE_DECLARED`` - published by the external registry the candidate came
     from. Somebody stated it on purpose.
-    ``SCHEMA_VERIFIED`` - read from a schema DataPilot itself verified against
-    the dataset. In Phase 3A this is a *contract*: no code path populates it yet,
-    because verifying a schema means downloading and parsing the file, which is
-    Phase 3B. It exists now so the ordering is fixed before anything can fill it.
+    ``SCHEMA_VERIFIED`` - a *structured* column list published in the registry's
+    own metadata (Hugging Face's ``dataset_info.features``), as opposed to prose
+    that mentions columns. DataPilot does not download or parse dataset files, so
+    this means "the registry's machine-generated schema", never "we read the file".
+    Only a registry can produce it: an AI candidate carrying columns is still
+    ``AI_SUGGESTED``.
     ``INFERRED`` - derived by DataPilot from declared metadata (a tag mapped onto
     a dictionary domain, an alias expansion). Real reasoning, published by nobody.
     ``AI_SUGGESTED`` - produced by a generative model. May be correct; carries no
@@ -451,15 +453,15 @@ class RiskSeverity(str, Enum):
 class RiskCategory(str, Enum):
     """Structured risks.
 
-    Only the first eleven categories are emitted in Phase 3A, and only where
-    existing metadata supports the fact. The remaining five require reading the
-    dataset itself - counting classes, measuring null rates, comparing rows,
-    looking for an identifier column - which is Phase 3B raw-dataset profiling.
-    They are declared here so the contract is fixed before anything fills them,
-    and ``EMITTABLE_RISK_CATEGORIES`` keeps them out of Phase 3A output.
+    Only the first ten categories are emitted for registry metadata, and only where
+    that metadata supports the fact. The remaining six require reading the dataset
+    itself - counting classes, measuring null rates, comparing rows, looking for an
+    identifier column - which is Phase 4 raw-dataset profiling (User B). They are
+    declared here so the contract is fixed before anything fills them, and
+    ``EMITTABLE_RISK_CATEGORIES`` keeps them out of every Phase 3 result.
     """
 
-    # -- emitted in Phase 3A
+    # -- emitted from registry metadata (Phase 3)
     TARGET_UNKNOWN = "target_unknown"
     TARGET_MISSING = "target_missing"
     TARGET_DERIVATION_REQUIRED = "target_derivation_required"
@@ -471,7 +473,7 @@ class RiskCategory(str, Enum):
     TASK_MISMATCH = "task_mismatch"
     TARGET_MISMATCH = "target_mismatch"
 
-    # -- Phase 3B only. Never emitted before raw profiling exists.
+    # -- Phase 4 only. Never emitted before raw dataset profiling exists.
     POSSIBLE_LEAKAGE = "possible_leakage"
     CLASS_IMBALANCE = "class_imbalance"
     HIGH_MISSINGNESS = "high_missingness"
@@ -480,7 +482,7 @@ class RiskCategory(str, Enum):
     SMALL_DATASET = "small_dataset"
 
 
-#: The risks Phase 3A may emit. Anything outside this set needs raw data.
+#: The risks Phase 3 may emit. Anything outside this set needs the raw dataset.
 EMITTABLE_RISK_CATEGORIES: frozenset[RiskCategory] = frozenset(
     {
         RiskCategory.TARGET_UNKNOWN,

@@ -85,13 +85,11 @@ _DECLARED_EVIDENCE_FIELDS: tuple[tuple[str, str], ...] = (
     ("license", "license"),
 )
 
-#: A free-text schema enumeration is trustworthy enough to prove a feature
-#: absent, but it is not a verified schema: nobody parsed the file. It therefore
-#: yields PARTIAL, never VERIFIED. Only Phase 3B can produce SCHEMA_VERIFIED.
+#: A free-text schema enumeration can show that a feature is present, but it is
+#: prose: such lists are often partial, so it is not a verified schema. It yields
+#: PARTIAL, never VERIFIED. Only a structured column list that the registry itself
+#: published (``DatasetCandidate.columns``) produces VERIFIED / SCHEMA_VERIFIED.
 _TEXT_ENUMERATED_SCHEMA = SchemaState.PARTIAL
-
-#: Datasets whose declared file types enumerate a closed set of columns would be
-#: the other PARTIAL source. Phase 3B replaces this with real verification.
 
 #: A construction route: the candidate says a label would have to be *made*.
 #: This is the second half of DERIVABLE, and it is required - the first half is

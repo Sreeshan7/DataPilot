@@ -25,7 +25,7 @@ from typing import Optional, Sequence
 
 from app.core.logging_config import get_logger
 from app.schemas.dataset import DatasetCandidate, VerificationStatus
-from app.services.datasets.target_concepts import TargetConceptIndex, value_tokens
+from app.services.datasets.target_concepts import TargetConceptIndex
 
 logger = get_logger(__name__)
 
