@@ -59,6 +59,7 @@ from app.schemas.intelligence import (
     TargetState,
     strongest_layer,
 )
+from app.services.datasets.target_concepts import value_tokens
 from app.services.datasets.compatibility import (
     _candidate_modalities,
     _project_modalities,
@@ -417,19 +418,61 @@ def _target_analysis(
                     "present or incompatible."
                 ),
             )
+        if declared_conflict:
+            return TargetAnalysis(
+                requirement=requirement,
+                state=TargetState.INCOMPATIBLE,
+                layer=layer,
+                evidence=declared_conflict[0],
+                detail=(
+                    f"The dataset's own metadata contradicts {requirement!r}: it declares "
+                    "a different label space, not merely different wording."
+                ),
+            )
+        # The ranker's MISMATCH says the declared target text does not match the
+        # project's wording. That alone is a wording gap, not a contradiction:
+        # "number of borrows per title" does not contain "borrow count" yet is exactly
+        # that target, and calling every such case INCOMPATIBLE condemned the best
+        # dataset in two benchmark cases.
+        #
+        # What separates a wording gap from a different outcome is shared vocabulary:
+        # the wording gaps still share a content word ("borrow", "adverse"), whereas a
+        # dataset declaring "readmission within 30 days" for a "mortality" project
+        # shares none, and no dictionary equivalence was found either (the ranker
+        # tried those before reporting MISMATCH). That combination is reported as
+        # INCOMPATIBLE, worded as the lexical judgment it is.
+        declared_target = (candidate.target_description or "").strip()
+        wanted = set(value_tokens(requirement))
+        shared = wanted & set(value_tokens(declared_target))
+        if declared_target and wanted and not shared:
+            return TargetAnalysis(
+                requirement=requirement,
+                state=TargetState.INCOMPATIBLE,
+                layer=layer,
+                evidence=(
+                    f"the dataset declares its target as {declared_target!r}, which shares "
+                    f"no words with {requirement!r}, and no dictionary equivalence links them"
+                ),
+                detail=(
+                    f"The dataset declares a target that appears to be a different outcome "
+                    f"from {requirement!r}. This is a vocabulary judgment, not a read of the "
+                    "label column: confirm against the dataset's own label definition."
+                ),
+            )
         return TargetAnalysis(
             requirement=requirement,
-            state=TargetState.INCOMPATIBLE,
+            state=TargetState.UNKNOWN,
             layer=layer,
             evidence=(
-                declared_conflict[0]
-                if declared_conflict
-                else verdict.detail
-                or f"the dataset declares a different target than {requirement!r}"
+                f"the dataset declares its target as {declared_target!r}, which does not "
+                f"use the wording of {requirement!r}"
+                if declared_target
+                else verdict.detail or "no target evidence was published"
             ),
             detail=(
-                f"The dataset's own metadata contradicts {requirement!r}. This is a "
-                "stated absence or a different label space, not a missing file."
+                f"The dataset's declared target is worded differently from {requirement!r}. "
+                "That is not evidence they differ, so compatibility is unknown rather than "
+                "incompatible; check the label definition before relying on it."
             ),
         )
 

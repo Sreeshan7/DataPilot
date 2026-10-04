@@ -340,3 +340,60 @@ class TestProjectModalitiesMatchWholePhrases:
         candidate = make_candidate(file_types=[".csv"], file_names=["marks.csv"])
         intel = _intel(candidate, make_requirements(data_types=["image data of x-rays"]))
         assert intel.compatibility.data_type is MatchStatus.MISMATCH
+
+
+# ---------------------------------------------------------------------------
+# Found by the recommendation benchmark: wording gap vs a different outcome
+# ---------------------------------------------------------------------------
+
+
+class TestTargetWordingVersusDifferentOutcome:
+    """The ranker's target MISMATCH only says the declared target text does not use
+    the project's words. INCOMPATIBLE must mean a different outcome, not different
+    phrasing: it condemned the best dataset in two benchmark cases."""
+
+    def _intel_for(self, declared, wanted):
+        from app.schemas.intelligence import TargetState  # noqa: F401
+
+        candidate = make_candidate(
+            target_description=declared, description="Dated records", feature_description=None
+        )
+        return _intel(candidate, make_requirements(target=wanted))
+
+    def test_a_wording_gap_that_shares_a_word_is_unknown_not_incompatible(self):
+        from app.schemas.intelligence import TargetState
+
+        intel = self._intel_for("number of borrows per title", "borrow count")
+        assert intel.target_analysis.state is TargetState.UNKNOWN
+        assert intel.compatibility.target is not MatchStatus.MISMATCH
+        assert intel.compatibility.overall is not CompatibilityLevel.LOW
+        assert "does not use the wording" in intel.target_analysis.evidence
+
+    def test_a_declared_target_sharing_no_word_is_a_different_outcome(self):
+        from app.schemas.intelligence import TargetState
+
+        intel = self._intel_for("readmission within 30 days", "patient mortality")
+        assert intel.target_analysis.state is TargetState.INCOMPATIBLE
+        assert "shares no words" in intel.target_analysis.evidence
+        assert "vocabulary judgment" in intel.target_analysis.detail
+
+    def test_the_incompatible_wording_admits_it_is_lexical(self):
+        intel = self._intel_for("loan default", "approved")
+        assert intel.target_analysis.state.value == "incompatible"
+        assert "confirm against the dataset's own label definition" in intel.target_analysis.detail
+
+    def test_no_declared_target_is_never_incompatible(self):
+        from app.schemas.intelligence import TargetState
+
+        candidate = make_candidate(target_description=None, description="Records")
+        intel = _intel(candidate, make_requirements(target="patient mortality"))
+        assert intel.target_analysis.state is not TargetState.INCOMPATIBLE
+
+    def test_an_ai_candidates_declared_target_can_never_be_incompatible(self):
+        from app.schemas.intelligence import TargetState
+
+        ai = normalize_genai_candidate(
+            make_genai_candidate(target_description="readmission within 30 days")
+        )
+        intel = _intel(ai, make_requirements(target="patient mortality"))
+        assert intel.target_analysis.state is not TargetState.INCOMPATIBLE

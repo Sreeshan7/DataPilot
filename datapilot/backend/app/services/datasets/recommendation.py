@@ -235,6 +235,14 @@ def build_final_recommendation(
     # lead (see that constant), so inside that band the dataset we can stand behind
     # more wins: highest confidence first, then best rank. Outside the band the
     # ranking decides, exactly as before.
+    #
+    # The preference for confirmed datasets only holds while the confirmed dataset is
+    # one we can stand behind (at least MEDIUM confidence). A confirmed dataset we are
+    # LOW on is not a reason to skip a better-ranked suggestion: the benchmark showed a
+    # registry-confirmed but irrelevant dataset being put forward over a highly
+    # relevant suggestion merely for being real. Both are tentative then, so the
+    # better-ranked one is chosen and the caveat says what is and is not confirmed.
+    chosen = (eligible or [None])[0]
     if verified:
         top_score = float(verified[0][1].ranking_score or 0.0)
         near = [
@@ -243,8 +251,8 @@ def build_final_recommendation(
             if top_score - float(row[1].ranking_score or 0.0) < CLOSE_CALL_MARGIN
         ]
         chosen = max(near, key=lambda row: (_LEVEL_ORDER[row[3].level], -row[0]))
-    else:
-        chosen = (eligible or [None])[0]
+        if chosen[3].level is ConfidenceLevel.LOW and eligible[0][0] < chosen[0]:
+            chosen = eligible[0]
 
     if chosen is None:
         closest = rows[0]
@@ -304,10 +312,14 @@ def build_final_recommendation(
     )
 
     caveats: list[str] = []
-    if not verified:
+    if not confirmed:
         caveats.append(
-            "No registry-confirmed dataset was found, so this suggestion rests on a "
-            "model's description and has not been checked against any registry."
+            "This suggestion rests on a model's description and has not been checked "
+            "against any registry."
+            if not verified
+            else "The best match is a model suggestion no registry has confirmed; the "
+            "registry-confirmed candidates were less relevant or less certain to suit "
+            "the project."
         )
     if rank > 1:
         passed_over = rank - 1

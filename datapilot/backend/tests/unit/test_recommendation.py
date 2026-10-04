@@ -180,7 +180,7 @@ class TestOutcome:
         _, _, _, final = _full([_ai()])
         assert final.outcome is RecommendationOutcome.TENTATIVE
         assert final.best_match.source_type is SourceType.AI_SUGGESTED
-        assert any("No registry-confirmed dataset" in c for c in final.caveats)
+        assert any("has not been checked against any registry" in c for c in final.caveats)
 
     def test_a_confirmed_dataset_beats_a_higher_ranked_ai_suggestion(self):
         ranked, _, _, final = _full([_ai(), _strong()])
@@ -417,3 +417,43 @@ class TestDeterminism:
         intel = build_intelligence_report(ranked, REQ)
         build_recommendations(ranked, intel)
         assert [c.model_dump_json() for c in ranked] == before
+
+
+# ---------------------------------------------------------------------------
+# Found by the recommendation benchmark: confirmed is not a reason to pick junk
+# ---------------------------------------------------------------------------
+
+
+class TestConfirmedPreferenceNeedsAConfidentDataset:
+    """A registry-confirmed dataset we are LOW on must not beat a better-ranked
+    suggestion merely for being real (a confirmed, irrelevant dataset was being put
+    forward over a highly relevant one)."""
+
+    def _weak_confirmed(self):
+        return make_candidate(
+            name="Unrelated Telemetry", source_id="o/weak", description="Telemetry",
+            tags=["education"], domain="education", target_description=None,
+            metadata_depth=MetadataDepth.LISTING, usability=0.2, vote_count=1, download_count=1,
+        )
+
+    def test_a_confident_confirmed_dataset_still_beats_a_higher_ranked_suggestion(self):
+        _, _, conf, final = _full([_ai(), _strong()])
+        assert final.best_match.source_type is SourceType.VERIFIED_EXTERNAL
+        assert final.best_match.confidence.level is not ConfidenceLevel.LOW
+
+    def test_a_low_confidence_confirmed_dataset_does_not_beat_a_better_ranked_suggestion(self):
+        ranked, _, conf, final = _full([self._weak_confirmed(), _ai()])
+        weak = next(c for c in ranked if c.source_type is SourceType.VERIFIED_EXTERNAL)
+        ai = next(c for c in ranked if c.source_type is SourceType.AI_SUGGESTED)
+        if ranked.index(ai) < ranked.index(weak):
+            confirmed_conf = conf[ranked.index(weak)]
+            assert confirmed_conf.level is ConfidenceLevel.LOW
+            assert final.best_match.source_type is SourceType.AI_SUGGESTED
+            assert final.outcome is RecommendationOutcome.TENTATIVE
+            assert any("no registry has confirmed" in c for c in final.caveats)
+
+    def test_the_outcome_is_never_recommended_when_the_best_is_a_suggestion(self):
+        for pool in ([self._weak_confirmed(), _ai()], [_ai()]):
+            _, _, _, final = _full(pool)
+            if final.best_match.source_type is SourceType.AI_SUGGESTED:
+                assert final.outcome is not RecommendationOutcome.RECOMMENDED
