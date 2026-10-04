@@ -323,6 +323,25 @@ def _name_tokens(normalized: str) -> set[str]:
     return tokens
 
 
+def _is_sequential(numeric: Optional["np.ndarray"]) -> bool:
+    """Whether integer values form a run or an arithmetic progression (1, 2, 3 ... or 10, 20, 30 ...).
+
+    Unique integer-valued columns are not all identifiers: prices, populations and counts
+    are too. What marks a row identifier is that the values are *assigned in order*.
+    """
+    import numpy as np
+
+    if numeric is None:
+        return False
+    data = np.sort(numeric[~np.isnan(numeric)])
+    if data.size < 3:
+        return False
+    steps = np.diff(data)
+    if steps.size and np.all(steps == steps[0]) and steps[0] > 0:
+        return True
+    return bool(data[-1] - data[0] + 1 <= 1.05 * data.size)
+
+
 def assess_identifier(column: TypedColumn, unique_ratio: float, count: int, thr: float) -> Optional[tuple[float, str]]:
     """Whether a column looks like a row/entity identifier, with confidence and why."""
     name_hit = bool(_IDENTIFIER_NAME.search(column.name))
@@ -330,7 +349,7 @@ def assess_identifier(column: TypedColumn, unique_ratio: float, count: int, thr:
     shape_hit = False
     if unique_hit:
         if column.ctype is ColumnType.NUMERIC:
-            shape_hit = column.is_integer
+            shape_hit = column.is_integer and _is_sequential(column.numeric)
         elif column.ctype in (ColumnType.CATEGORICAL, ColumnType.TEXT):
             shape_hit = column.ctype is ColumnType.CATEGORICAL
     if name_hit and unique_hit:
@@ -338,7 +357,9 @@ def assess_identifier(column: TypedColumn, unique_ratio: float, count: int, thr:
     if name_hit:
         return 0.6, "named like an identifier (values repeat, so it may be a foreign key)"
     if unique_hit and shape_hit:
-        return 0.6, f"{unique_ratio:.0%} of values are distinct, as in a row identifier"
+        return 0.6, f"{unique_ratio:.0%} of values are distinct" + (
+            " and run in sequence" if column.ctype is ColumnType.NUMERIC else ", as in a row identifier"
+        )
     return None
 
 
