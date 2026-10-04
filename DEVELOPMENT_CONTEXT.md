@@ -1,3 +1,10 @@
+> **2026-10-05 - read `DEVELOPMENT_STATE.md` first.** It is the canonical, current handoff
+> (Phase 3 is complete there). This file is the longer Phase 1-2 history and is **not
+> updated for Phase 3**. Known errata: `/datasets/search` is a **POST**, not a GET; the
+> test counts quoted below (374 / 536 / 542 / 697) are historical; the current figure is
+> in `DEVELOPMENT_STATE.md`; Hugging Face, enrichment, `DatasetIntelligence` and the final
+> recommendation are not described here.
+
 # DataPilot - Development Context
 
 > **Last verified:** 2026-09-28 from actual repository code.

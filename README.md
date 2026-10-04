@@ -2,9 +2,11 @@
 
 **DataPilot** is a GenAI-powered platform intended to help users move from project ideas to dataset discovery, evaluation, ranking, and recommendation.
 
-> **Current Status:** Only the **Project Requirement Analyzer** module is implemented (v0.1.0). Dataset discovery, dataset ranking, dataset recommendation, dataset upload, frontend, database, RAG, and vector search are **NOT yet implemented**.
+> **Current Status:** The **User A** workflow is implemented end to end: a project idea becomes structured requirements, then ranked and explained dataset recommendations from Kaggle and Hugging Face (plus clearly labelled, unverified AI suggestions). **User B** (analysing a dataset you upload), the frontend, a database, authentication, and embeddings/vector search are **not implemented**. See `DEVELOPMENT_STATE.md` for exact status, test counts, and known limitations.
 
-## Currently Implemented: Project Requirement Analyzer
+## Currently Implemented
+
+### 1. Project Requirement Analyzer
 
 The Project Requirement Analyzer takes a natural-language ML/AI project description (max 150 words) and converts it into structured requirements.
 
@@ -34,12 +36,33 @@ Reconciliation (merge, deduplicate, track provenance)
 Structured Response
 ```
 
+### 2. Dataset discovery, intelligence and recommendation (User A)
+
+`POST /api/v1/datasets/recommend` takes the same description and returns:
+
+- **Ranked datasets** from Kaggle and Hugging Face (registry-verified) and Gemini suggestions
+  (`ai_suggested`, `unverified`), deduplicated, with a deterministic ten-factor score that
+  always equals the sum of its listed contributions.
+- **Dataset intelligence** per dataset: what the registry published versus what DataPilot
+  inferred, schema state, whether the target is present / derivable / unknown /
+  incompatible, per-feature coverage (matched, unknown and missing kept apart), data-type
+  and time-axis checks, risks and limitations.
+- **Confidence** per dataset, and a **final recommendation**: best match, alternatives with
+  the one reason each ranks lower, what is verified / unknown / missing, and what to watch
+  out for.
+
+Rules the system enforces in code, not just in documentation: an AI suggestion is never
+reported as verified or recommended; unknown is never treated as missing or as a match; a
+dataset found incompatible is never put forward as the best match; no dataset file is ever
+downloaded, so "verified schema" means a column list the registry itself published.
+
 ## Technology Stack
 
 | Component | Technology |
 |-----------|-----------|
 | Backend | Python 3.13+, FastAPI, Pydantic v2 |
 | AI | Google GenAI SDK (`google-genai`) with Gemini 3.1 Flash Lite |
+| Sources | Kaggle API and Hugging Face Hub API via `httpx` |
 | Configuration | pydantic-settings, .env |
 | Testing | pytest, httpx, FastAPI TestClient |
 | Server | Uvicorn |
@@ -71,7 +94,7 @@ pip install -r requirements.txt
 
 ### 4. Configure environment variables
 
-Copy `.env.example` to `.env` and fill in your Gemini API key:
+Copy `.env.example` to `.env` and fill in your Gemini API key (a Kaggle token is optional; Kaggle's public search and the Hugging Face Hub work without credentials):
 
 ```bash
 cp .env.example .env
@@ -81,6 +104,7 @@ Edit `.env`:
 ```
 GEMINI_API_KEY=your_actual_api_key_here
 GEMINI_MODEL=gemini-3.1-flash-lite
+KAGGLE_API_TOKEN=            # optional
 APP_ENV=development
 LOG_LEVEL=INFO
 ```
@@ -105,6 +129,19 @@ uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 |--------|------|-------------|
 | GET | `/health` | Health check (no Gemini call) |
 | GET | `/ready` | Readiness check (shows config state) |
+
+### Datasets
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/v1/datasets/search` | Keyword search across the verified sources (no Gemini) |
+| POST | `/api/v1/datasets/recommend` | Full pipeline: requirements, discovery, ranking, intelligence, final recommendation |
+
+`recommend` request: `{"description": "...", "limit": 10}`. Each entry of `recommendations`
+carries `dataset`, `ranking_score`, `ranking_factors`, `intelligence` and `confidence`;
+the response also has `final_recommendation` and `meta` (which reports the extra enrichment
+and confirmation requests made). Errors use the same `ErrorResponse` envelope under
+`detail`.
 
 ### Project Analysis
 
@@ -175,7 +212,7 @@ uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 
 ## Keyword Knowledge Base
 
-The dictionary at `backend/data/keyword_dictionary.json` is a project-to-dataset knowledge base with **147 concepts** across **22 domains**:
+The dictionary at `backend/data/keyword_dictionary.json` is a project-to-dataset knowledge base with **148 concepts** across **22 domains**:
 
 - Artificial Intelligence (ML, Deep Learning, NLP, Computer Vision, Foundational ML)
 - Cybersecurity (Network Security, Web Security, Fraud Detection)
@@ -206,7 +243,18 @@ python -m pytest tests/unit/ -v
 python -m pytest tests/unit/ -v --tb=short
 ```
 
-**Current test status:** 101 unit tests, all passing.
+**Current test status:** 1056 unit tests, all passing, and identical under `PYTHONHASHSEED` 0 / 5 / 88 / 1234.
+
+Other verification (all in `datapilot/backend`):
+
+```bash
+python -m scripts.run_evaluation   # offline ranking benchmark (no network)
+python -m scripts.run_stress       # offline controlled stress test
+python -m scripts.run_e2e          # LIVE: real Kaggle, Hugging Face and Gemini; spends a few Gemini calls
+```
+
+The benchmark figures in `evaluation/RANKING_EVALUATION.md` come from a corpus this project
+wrote; they are not real-world accuracy.
 
 ## Postman
 
@@ -227,42 +275,42 @@ Set the `base_url` variable to `http://localhost:8000`.
 
 ## Currently NOT Implemented
 
-- Dataset Discovery (Kaggle, HuggingFace, data.gov)
-- Dataset Metadata Collection
-- Dataset Quality Analysis
-- Dataset Relevance Scoring
-- Dataset Ranking
-- Dataset Recommendation
-- Dataset Upload & Analysis
+- User B: uploading and analysing your own dataset (CSV/Excel profiling, statistics, quality)
+- Raw-data risks (class imbalance, leakage, missing values, duplicates) - they need the file
+- Sources beyond Kaggle and Hugging Face (UCI, data.gov, GitHub, papers)
 - Frontend
-- Database (PostgreSQL, etc.)
+- Database
 - RAG / Vector Search / Embeddings
 - User Authentication
 
-See `DEVELOPMENT_CONTEXT.md` for detailed technical documentation and the full roadmap.
+See `DEVELOPMENT_STATE.md` for current status, known limitations and the next task, and
+`DEVELOPMENT_CONTEXT.md` for the longer technical history of Phases 1 and 2.
 
 ## File Structure
 
 ```
 DataPilot/
 ├── README.md
-├── DEVELOPMENT_CONTEXT.md
+├── DEVELOPMENT_STATE.md          # canonical status / handoff
+├── DEVELOPMENT_CONTEXT.md        # long-form Phase 1-2 history
 ├── .gitignore
 ├── datapilot/
 │   ├── backend/
 │   │   ├── app/
 │   │   │   ├── __init__.py
 │   │   │   ├── main.py
-│   │   │   ├── api/v1/project_analysis.py
+│   │   │   ├── api/v1/project_analysis.py, datasets.py
 │   │   │   ├── core/config.py, logging_config.py
-│   │   │   ├── schemas/project.py
+│   │   │   ├── schemas/project.py, dataset.py, intelligence.py, recommendation.py
 │   │   │   ├── services/
-│   │   │   │   ├── keyword_service.py
-│   │   │   │   ├── llm_service.py
-│   │   │   │   ├── reconciliation_service.py
-│   │   │   │   └── project_analyzer.py
-│   │   │   └── prompts/project_analysis.py
+│   │   │   │   ├── keyword_service.py, llm_service.py
+│   │   │   │   ├── reconciliation_service.py, project_analyzer.py
+│   │   │   │   └── datasets/      # sources, normalizer, dedup, ranking,
+│   │   │   │                      # intelligence, recommendation, evaluation/
+│   │   │   └── prompts/project_analysis.py, dataset_discovery.py
 │   │   ├── data/keyword_dictionary.json
+│   │   ├── scripts/               # run_evaluation, run_stress, run_e2e
+│   │   ├── evaluation/            # benchmark reports and the live E2E report
 │   │   ├── tests/unit/
 │   │   ├── requirements.txt
 │   │   ├── .env.example
