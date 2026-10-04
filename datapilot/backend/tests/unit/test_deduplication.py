@@ -177,7 +177,23 @@ class TestMergePreservesVerifiedEvidence:
         assert result[0].license == "CC0-1.0"
         assert result[0].usability == 0.9
 
-    def test_missing_metadata_is_filled_from_the_other_side(self):
+    def test_missing_metadata_is_filled_from_another_published_record(self):
+        """Two registries describing one dataset may complete each other."""
+        a = make_candidate(name="Student Performance", url="https://x.com/a")
+        a.license = None
+        a.owner = None
+        b = make_candidate(
+            name="Student Performance", url="https://x.com/a", source="hf", source_id="o/b"
+        )
+        b.id = "hf:o/b"
+        b.owner = "UCI"
+        b.license = "CC BY 4.0"
+        result = DatasetDeduplicator().deduplicate([a, b])
+        assert result[0].license == "CC BY 4.0"
+        assert result[0].owner == "UCI"
+
+    def test_ai_metadata_never_fills_a_verified_record(self):
+        """A model's guess must not become registry-published metadata."""
         verified = make_candidate(name="Student Performance", url="https://x.com/a")
         verified.license = None
         verified.owner = None
@@ -187,9 +203,14 @@ class TestMergePreservesVerifiedEvidence:
         )
         ai.owner = "UCI"
         ai.license = "CC BY 4.0"
-        result = DatasetDeduplicator().deduplicate([verified, ai])
-        assert result[0].license == "CC BY 4.0"
-        assert result[0].owner == "UCI"
+        result = DatasetDeduplicator().deduplicate([verified, ai])[0]
+        assert result.license is None
+        assert result.owner is None
+        assert result.description is None
+        # ...but the claim is not discarded: it is kept, labelled, and separate.
+        assert result.ai_suggested_claims is not None
+        assert result.ai_suggested_claims.license == "CC BY 4.0"
+        assert result.ai_suggested_claims.source == "genai"
 
     def test_rationale_survives_a_merge_into_verified(self):
         verified = make_candidate(name="Student Performance", url="https://x.com/a")
@@ -200,15 +221,24 @@ class TestMergePreservesVerifiedEvidence:
         result = DatasetDeduplicator().deduplicate([verified, ai])
         assert result[0].rationale is not None
 
-    def test_tags_are_unioned_without_duplicates(self):
+    def test_tags_are_unioned_between_published_records(self):
+        a = make_candidate(name="Student Performance", url="https://x.com/a")
+        a.tags = ["education"]
+        b = make_candidate(name="Student Performance", url="https://x.com/a", source_id="o/b")
+        b.tags = ["Education", "schools"]
+        result = DatasetDeduplicator().deduplicate([a, b])
+        assert result[0].tags == ["education", "schools"]
+
+    def test_ai_tags_are_not_added_to_a_verified_record(self):
         verified = make_candidate(name="Student Performance", url="https://x.com/a")
         verified.tags = ["education"]
         ai = normalize_genai_candidate(
             make_genai_candidate(name="Student Performance", url="https://x.com/a")
         )
-        ai.tags = ["Education", "schools"]
-        result = DatasetDeduplicator().deduplicate([verified, ai])
-        assert result[0].tags == ["education", "schools"]
+        ai.tags = ["schools"]
+        result = DatasetDeduplicator().deduplicate([verified, ai])[0]
+        assert result.tags == ["education"]
+        assert result.ai_suggested_claims.tags == ["schools"]
 
     def test_both_sources_are_recorded(self):
         verified = make_candidate(name="Student Performance", url="https://x.com/a")
@@ -228,6 +258,85 @@ class TestMergePreservesVerifiedEvidence:
         result = DatasetDeduplicator().deduplicate([a, b, c])
         assert len(result) == 1
         assert result[0].merged_candidate_count == 3
+
+
+class TestAIClaimsAreNotLaundered:
+    """Regression: an AI suggestion merged into a verified record used to turn
+    the model's guessed features, target and tasks into 'declared' evidence."""
+
+    def _merged(self, **ai_overrides):
+        verified = make_candidate(
+            name="Student Performance",
+            url="https://x.com/a",
+            description="Student marks data",
+            target_description=None,
+            task_types=[],
+        )
+        ai = normalize_genai_candidate(
+            make_genai_candidate(
+                name="Student Performance",
+                url="https://x.com/a",
+                features=["attendance", "bmi"],
+                target_description="final grade",
+                tasks=["regression"],
+                **ai_overrides,
+            )
+        )
+        return DatasetDeduplicator().deduplicate([verified, ai])[0]
+
+    def test_published_fields_stay_as_the_registry_published_them(self):
+        merged = self._merged()
+        assert merged.target_description is None
+        assert merged.feature_description is None
+        assert merged.task_types == []
+        assert merged.description == "Student marks data"
+
+    def test_the_models_claims_are_kept_separately(self):
+        claims = self._merged().ai_suggested_claims
+        assert claims is not None
+        assert claims.target_description == "final grade"
+        assert "bmi" in claims.feature_description
+        assert claims.task_types == ["regression"]
+
+    def test_claims_are_not_visible_to_the_evidence_text(self):
+        merged = self._merged()
+        assert "bmi" not in merged.evidence_text()
+        assert "regression" not in merged.evidence_text()
+
+    def test_merge_order_does_not_matter(self):
+        verified = make_candidate(name="Student Performance", url="https://x.com/a",
+                                  feature_description=None, task_types=[])
+        ai = normalize_genai_candidate(
+            make_genai_candidate(name="Student Performance", url="https://x.com/a",
+                                 features=["bmi"], tasks=["regression"])
+        )
+        for order in ([verified, ai], [ai, verified]):
+            merged = DatasetDeduplicator().deduplicate(
+                [c.model_copy(deep=True) for c in order]
+            )[0]
+            assert merged.feature_description is None
+            assert merged.task_types == []
+            assert "bmi" in merged.ai_suggested_claims.feature_description
+
+    def test_a_merged_ai_claim_cannot_create_a_feature_or_task_verdict(self):
+        from app.services.datasets.intelligence import build_dataset_intelligence
+        from app.services.datasets.ranking import DatasetRankingEngine
+        from app.schemas.intelligence import FeatureMatchState
+        from tests.conftest import TEST_NOW, make_requirements, make_settings
+
+        merged = self._merged()
+        req = make_requirements(features=["bmi"], tasks=["classification"])
+        ranked = DatasetRankingEngine(settings=make_settings(), now=TEST_NOW).rank([merged], req)[0]
+        intel = build_dataset_intelligence(ranked, req)
+        assert {f.state for f in intel.feature_coverage.all_features} == {FeatureMatchState.UNKNOWN}
+        assert intel.compatibility.contradictions == []
+
+    def test_verified_with_verified_still_fills_gaps(self):
+        a = make_candidate(name="Student Performance", url="https://x.com/a")
+        a.usability = None
+        b = make_candidate(name="Student Performance", url="https://x.com/a", source_id="o/b")
+        b.usability = 0.7
+        assert DatasetDeduplicator().deduplicate([a, b])[0].usability == 0.7
 
 
 class TestOrderPreservation:

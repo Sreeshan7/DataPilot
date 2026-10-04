@@ -264,6 +264,39 @@ class RankingFactor(BaseModel):
     )
 
 
+class AISuggestedClaims(BaseModel):
+    """What a generative model *claimed* about a dataset a registry also lists.
+
+    When an AI suggestion is merged into a verified record, the model's own
+    description, label, features, tasks, license and tags are kept here and not
+    written into the record's published fields. Copying them across would turn a
+    guess into registry metadata: a model that says the dataset "contains BMI"
+    would make a verified record appear to declare BMI. Nothing in this model is
+    ever matched as evidence by the ranker or the intelligence layer; it exists so
+    an explanation can say "a model also suggested X (unconfirmed)".
+    """
+
+    source: str
+    description: Optional[str] = None
+    target_description: Optional[str] = None
+    feature_description: Optional[str] = None
+    task_types: list[str] = Field(default_factory=list)
+    tags: list[str] = Field(default_factory=list)
+    license: Optional[str] = None
+
+    def is_empty(self) -> bool:
+        return not any(
+            (
+                self.description,
+                self.target_description,
+                self.feature_description,
+                self.task_types,
+                self.tags,
+                self.license,
+            )
+        )
+
+
 class DatasetCandidate(BaseModel):
     """Source-independent dataset candidate.
 
@@ -381,6 +414,14 @@ class DatasetCandidate(BaseModel):
         ),
     )
 
+    ai_suggested_claims: Optional[AISuggestedClaims] = Field(
+        None,
+        description=(
+            "Metadata a model claimed about this dataset after being merged into "
+            "this verified record. Unconfirmed, and never used as evidence."
+        ),
+    )
+
     # -- deduplication ------------------------------------------------------
     duplicate_sources: list[str] = Field(
         default_factory=list,
@@ -421,11 +462,35 @@ class DatasetCandidate(BaseModel):
         ]
         return " ".join(p for p in parts if p).lower()
 
+    #: Fields describing the dataset itself. A model's values for these are never
+    #: copied into a verified record, because they would then read as published.
+    _DESCRIPTIVE_FIELDS = (
+        "url",
+        "description",
+        "owner",
+        "domain",
+        "target_description",
+        "feature_description",
+        "license",
+        "updated_at",
+        "created_at",
+        "size_bytes",
+        "file_count",
+        "download_count",
+        "vote_count",
+        "usability",
+    )
+
     def merge(self, other: "DatasetCandidate") -> "DatasetCandidate":
         """Absorb another candidate describing the same dataset.
 
         Rules: verified external evidence always wins over AI suggestions,
-        missing values are filled in, and neither side invents metadata.
+        missing values are filled in only from another *published* record, and
+        neither side invents metadata.
+
+        An AI suggestion never fills a verified record's metadata. Its claims are
+        retained in ``ai_suggested_claims``, labelled as unconfirmed, and only its
+        advisory hints (rationale, confidence, provenance) are carried over.
         """
         if (
             other.source_type is SourceType.VERIFIED_EXTERNAL
@@ -435,32 +500,27 @@ class DatasetCandidate(BaseModel):
         else:
             primary, secondary = self, other
 
-        for field_name in (
-            "url",
-            "description",
-            "owner",
-            "domain",
-            "target_description",
-            "feature_description",
-            "rationale",
-            "license",
-            "updated_at",
-            "created_at",
-            "size_bytes",
-            "file_count",
-            "download_count",
-            "vote_count",
-            "usability",
-            "confidence_score",
-            "possible_source",
-            "is_well_known",
-        ):
+        ai_into_verified = (
+            primary.source_type is SourceType.VERIFIED_EXTERNAL
+            and secondary.source_type is SourceType.AI_SUGGESTED
+        )
+
+        if ai_into_verified:
+            primary._absorb_ai_claims(secondary)
+        else:
+            for field_name in self._DESCRIPTIVE_FIELDS:
+                if getattr(primary, field_name) is None:
+                    setattr(primary, field_name, getattr(secondary, field_name))
+            primary.tags = _merge_unique(primary.tags + secondary.tags)
+            primary.file_types = _merge_unique(primary.file_types + secondary.file_types)
+            primary.task_types = _merge_unique(primary.task_types + secondary.task_types)
+
+        # Advisory fields describe the model's opinion of the project, not the
+        # dataset, so they are safe to carry over and are never evidence.
+        for field_name in ("rationale", "confidence_score", "possible_source", "is_well_known"):
             if getattr(primary, field_name) is None:
                 setattr(primary, field_name, getattr(secondary, field_name))
 
-        primary.tags = _merge_unique(primary.tags + secondary.tags)
-        primary.file_types = _merge_unique(primary.file_types + secondary.file_types)
-        primary.task_types = _merge_unique(primary.task_types + secondary.task_types)
         primary.duplicate_sources = _merge_unique(
             [
                 s
@@ -474,6 +534,30 @@ class DatasetCandidate(BaseModel):
         )
         primary.merged_candidate_count += secondary.merged_candidate_count
         return primary
+
+    def _absorb_ai_claims(self, suggestion: "DatasetCandidate") -> None:
+        """Record a model's metadata claims without promoting them to published fields."""
+        previous = self.ai_suggested_claims
+        claims = AISuggestedClaims(
+            source=suggestion.source,
+            description=suggestion.description,
+            target_description=suggestion.target_description,
+            feature_description=suggestion.feature_description,
+            task_types=list(suggestion.task_types),
+            tags=list(suggestion.tags),
+            license=suggestion.license,
+        )
+        if previous is not None:
+            claims = AISuggestedClaims(
+                source=previous.source,
+                description=previous.description or claims.description,
+                target_description=previous.target_description or claims.target_description,
+                feature_description=previous.feature_description or claims.feature_description,
+                task_types=_merge_unique(previous.task_types + claims.task_types),
+                tags=_merge_unique(previous.tags + claims.tags),
+                license=previous.license or claims.license,
+            )
+        self.ai_suggested_claims = None if claims.is_empty() else claims
 
 
 def _merge_unique(values: list[str]) -> list[str]:
