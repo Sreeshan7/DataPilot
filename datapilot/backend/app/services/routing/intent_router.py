@@ -38,6 +38,7 @@ from app.schemas.routing import (
 from app.services.dataset_analysis.references import (
     UnsafeURLError,
     extract_dataset_name,
+    is_generic_name,
     extract_urls,
     parse_dataset_url,
 )
@@ -74,7 +75,8 @@ _DEICTIC = re.compile(
 )
 _FILE_MENTION = re.compile(r"(?<![\w/\\])[\w\-]{1,80}\.(?:csv|xlsx|xls|tsv)\b", re.IGNORECASE)
 _ANALYSIS_VERB = re.compile(
-    r"\b(?:analy[sz]e|profile|inspect|explore|summari[sz]e|examine|review|audit|clean|check)\b",
+    r"\b(?:analy[sz]e|profile|inspect|explore|summari[sz]e|examine|review|audit|clean|check|investigate|study|"
+    r"look\s+(?:at|into|over)|take\s+a\s+look|go\s+(?:through|over)|check\s+out|dig\s+into|tell\s+me\s+about|understand)\b",
     re.IGNORECASE,
 )
 _WHAT_CAN_I = re.compile(
@@ -321,10 +323,8 @@ class IntentRouter:
         )
         specific_name = False
         if reference is not None and reference.name and not reference.url:
-            hint = extract_dataset_name(reference.name) or None
-            specific_name = bool(request.dataset_name) or (
-                hint is not None and not hint.generic
-            )
+            # the name was already extracted: it only has to be more than topic words (an unknown name such as "LIAR" is fine)
+            specific_name = bool(request.dataset_name) or not is_generic_name(reference.name)
         if not has_usable_reference or (
             not request.has_file and not has_link and not specific_name
         ):

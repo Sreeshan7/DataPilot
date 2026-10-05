@@ -267,6 +267,12 @@ def _is_known(name: str) -> bool:
     return normalize_dataset_name(name) in KNOWN_DATASET_NAMES
 
 
+def is_generic_name(name: str) -> bool:
+    """True when a name is only topic words ("student", "sales"): too vague to look up. An empty name is generic."""
+    words = normalize_dataset_name(name or "").split()
+    return not words or all(w in _GENERIC_TOPIC_WORDS for w in words)
+
+
 def _hint(name: str, evidence: str, base: float) -> Optional[DatasetNameHint]:
     cleaned = " ".join(name.split()).strip(" .,;:!?\"'")
     if not cleaned or len(cleaned) > 80:
@@ -308,15 +314,28 @@ def extract_dataset_name(text: Optional[str]) -> Optional[DatasetNameHint]:
     if m and (hint := _hint(m.group(1).replace("_", " ").replace("-", " "), f"file name {m.group(0)!r}", 0.85)):
         return hint
 
-    for noun in _NOUN_RE.finditer(text):
+    candidates: list[tuple[DatasetNameHint, int]] = []
+    for position, noun in enumerate(_NOUN_RE.finditer(text)):
         before = re.findall(r"[A-Za-z0-9][\w\-\.]*", text[: noun.start()])[-5:]
         while before and before[0].lower().strip(".") in _LEADING_FILLER:
             before = before[1:]
         # also trim trailing filler such as "the" directly before the noun
         while before and before[-1].lower() in _LEADING_FILLER:
             before = before[:-1]
+        # a name does not contain filler ("could you analyze"): keep what follows the last filler word
+        for i in range(len(before) - 1, -1, -1):
+            if before[i].lower() in _LEADING_FILLER:
+                before = before[i + 1:]
+                break
         if before and (hint := _hint(" ".join(before), "the words before 'dataset'", 0.7)):
-            return hint
+            candidates.append((hint, position))
+    if candidates:
+        # several mentions ("this dataset for me, LIAR Dataset"): the most confident wins; among equals, the one that
+        # looks like a name (capitalised words, an acronym) beats plain lowercase words, then the later mention.
+        def looks_like_a_name(h: DatasetNameHint) -> bool:
+            return any(w[:1].isupper() for w in h.name.split())
+
+        return max(candidates, key=lambda c: (c[0].confidence, looks_like_a_name(c[0]), c[1]))[0]
 
     lowered = normalize_dataset_name(text)
     for known in sorted(_DISTINCTIVE_NAMES, key=len, reverse=True):

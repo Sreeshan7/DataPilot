@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import threading
 import uuid
 from typing import AsyncIterator, Optional
@@ -40,6 +41,8 @@ _router = IntentRouter()
 
 HEARTBEAT_SECONDS = 10.0
 
+_ANALYSIS_WORDS = re.compile(r"\b(?:analy[sz]e|look\s+at|check\s+out|explore|inspect|examine|profile|review|tell\s+me\s+about|understand)\b", re.I)
+
 _JOURNEY_LABEL = {
     UserIntent.USER_A_DATASET_DISCOVERY: "finding a dataset",
     UserIntent.USER_B_DATASET_ANALYSIS: "analysing a dataset",
@@ -62,6 +65,22 @@ def _plan_for(intent: UserIntent, has_file: bool, has_goal: bool) -> list[tuple[
     return [("lookup", "Looking the dataset up in public registries"), ("ideas", "Drafting project ideas from your columns")]
 
 
+async def _name_from_message(message: Optional[str]) -> Optional[str]:
+    """A dataset name the rules could not find, read by AI from the message (validated against the user's own words)."""
+    try:
+        from app.core.config import get_settings
+        from app.services.dataset_analysis.name_ai import extract_name
+        from app.services.llm_service import LLMService
+
+        settings = get_settings()
+        if not settings.analysis_gemini_enabled:
+            return None
+        return await extract_name(LLMService(settings), settings, message or "")
+    except Exception as exc:  # optional: the user is simply asked for the name instead
+        logger.error("Dataset-name step failed: %s", type(exc).__name__)
+        return None
+
+
 async def _execute(
     message: Optional[str], project_goal: Optional[str], file: Optional[UploadFile], dataset_name: Optional[str],
     dataset_url: Optional[str], source: Optional[str], target: Optional[str], sheet_name: Optional[str], limit: int,
@@ -79,6 +98,17 @@ async def _execute(
             project_goal=project_goal,
         )
         routing = _router.resolve(intent_request)
+        wants_analysis = bool(message and not project_goal and _ANALYSIS_WORDS.search(message))
+        if (not has_file and not dataset_url and not dataset_name and (message or project_goal) and (
+                (routing.intent is UserIntent.USER_B_DATASET_ANALYSIS and routing.required_next_input)
+                or (routing.intent is UserIntent.AMBIGUOUS and wants_analysis))):  # "analyse LIAR pls"
+            progress.start("name", "Working out which dataset you mean")
+            found = await _name_from_message(message or project_goal)
+            progress.done("name", found if found else "no dataset name found")
+            if found:
+                dataset_name = found
+                intent_request = intent_request.model_copy(update={"dataset_name": found})
+                routing = _router.resolve(intent_request)
         # Only the decision is logged: never the user's message or file name.
         logger.info("[%s] POST /api/v1/assist intent=%s confidence=%.2f",
                     request_id, routing.intent.value, routing.confidence)

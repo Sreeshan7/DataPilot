@@ -388,3 +388,16 @@ both benchmark scripts (metrics above must not move unexpectedly); for registry/
 - Limits: a header read gives names and rough kinds only (no missingness/importance); the page reader depends on the keyless
   search engine and on pages that actually list columns.
 - Tests: backend 2296 passed.
+
+## Naming a dataset in a sentence (2026-10-05)
+- **Bug:** the router re-extracted a name from the already-extracted name, so only names on the built-in list passed
+  ("analyze the LIAR dataset" -> "upload the file"). Now only genericity is checked (`is_generic_name`).
+- Name extraction picks the best of several "dataset" mentions and drops filler ("could you analuze ... LIAR Dataset" ->
+  LIAR); the router also treats "look at", "check out", "tell me about", "go through", "investigate", "study",
+  "understand" as analysis.
+- **AI safety net (`dataset_analysis/name_ai.py`):** when the user clearly wants analysis but no name was found (or the
+  message is "analyse LIAR pls"), one small Gemini call reads the name; accepted only if every word of it is in the user's
+  own message and it is not just topic words. Setting `analysis_ai_name_enabled`. Reported as a stream stage ("name").
+- **Confirmation:** `MatchedDataset` card shows which dataset was matched (name, source, link, only-match vs best-of-several,
+  the registry's own explanation) and lets the user switch to any alternative that has a link. Absent for uploads/links.
+- Live: the exact message resolved to Hugging Face LIAR (14 columns, 12,836 rows, target label). Tests: backend 2314, frontend 45.

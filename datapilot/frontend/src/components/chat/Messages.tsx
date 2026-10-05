@@ -105,7 +105,7 @@ export function AssistantMessage({ turn, h }: { turn: AssistantTurn; h: MessageH
 
   const data = turn.result.data;
   const research = data.next_actions.find((a) => a.action === "RESEARCH_PROBLEM");
-  const hide = data.discovery ? ["ANALYZE_RECOMMENDED_DATASET", "UPLOAD_FILE"] : [];
+  const hide = data.discovery ? ["ANALYZE_RECOMMENDED_DATASET", "UPLOAD_FILE"] : data.analysis ? ["ANALYZE_ALTERNATIVE"] : []; // the matched-dataset card already offers the alternatives
   const actions = visibleActions(data.next_actions, hide);
 
   return (
@@ -116,7 +116,7 @@ export function AssistantMessage({ turn, h }: { turn: AssistantTurn; h: MessageH
         <>
           <p className="text-[15px] leading-7">{data.headline}</p>
           {data.discovery && <DiscoveryResult data={data.discovery} busy={h.busy} onAnalyze={h.onAnalyzeUrl} />}
-          {data.analysis && <AnalysisView data={data.analysis} onResearch={h.onResearchIdea} busy={h.busy} />}
+          {data.analysis && <AnalysisView data={data.analysis} onResearch={h.onResearchIdea} onSwitchDataset={h.onAnalyzeUrl} busy={h.busy} />}
         </>
       )}
       <ActivityTrace steps={traceFromAssist(data)} />

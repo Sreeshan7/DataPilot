@@ -7,6 +7,7 @@ import { Rich } from "@/components/chat/Rich";
 import { PaperCard } from "@/components/research/ResearchResult";
 import { ResearchOffer } from "@/components/research/ResearchOffer";
 import { IdeaCard } from "@/components/intelligence/IdeasPanel";
+import { MatchedDataset } from "@/components/intelligence/AnalysisView";
 import { ResearchResult } from "@/components/research/ResearchResult";
 import { HERO_PHRASES, useRotatingPhrase } from "@/hooks/useRotatingPhrase";
 import type { NextAction, Paper } from "@/types";
@@ -172,5 +173,34 @@ describe("Project ideas and research", () => {
     render(<ResearchResult data={data} onRefine={onRefine} />);
     await userEvent.setup().click(screen.getByRole("button", { name: "Customer churn" }));
     expect(onRefine).toHaveBeenCalledWith("Customer churn");
+  });
+});
+
+describe("MatchedDataset", () => {
+  const analysis = (over: Record<string, unknown> = {}, res: Record<string, unknown> = {}) => ({
+    dataset_identity: { name: "LIAR", source: "huggingface", url: "https://huggingface.co/datasets/ucsbnlp/liar" },
+    input_resolution: {
+      input_type: "public_dataset_name", resolution_status: "probable", clarification: "4 datasets share the name 'liar'. DataPilot analysed the huggingface one (LIAR); give a link if you meant another.",
+      alternatives: [{ name: "LIAR (Kaggle)", source: "kaggle", identifier: "a/liar", url: "https://www.kaggle.com/datasets/a/liar", column_count: 14 }, { name: "no link", source: "uci", identifier: "x" }],
+      ...res,
+    },
+    ...over,
+  }) as never;
+
+  it("says exactly which dataset was matched and lets the user switch to another one", async () => {
+    const onSwitch = vi.fn();
+    render(<MatchedDataset a={analysis()} onSwitch={onSwitch} />);
+    expect(screen.getByText("Is this the dataset you meant?")).toBeInTheDocument();
+    expect(screen.getByText("LIAR")).toBeInTheDocument();
+    expect(screen.queryByText(/no link/)).toBeNull(); // an alternative that cannot be opened is not offered
+    await userEvent.setup().click(screen.getByRole("button", { name: /LIAR \(Kaggle\)/ }));
+    expect(onSwitch).toHaveBeenCalledWith("https://www.kaggle.com/datasets/a/liar", "LIAR (Kaggle)");
+  });
+
+  it("is calm when only one dataset has the name, and is absent for uploads and links", () => {
+    const { rerender, container } = render(<MatchedDataset a={analysis({}, { resolution_status: "resolved", clarification: null, alternatives: [] })} />);
+    expect(screen.getByText("Matched dataset")).toBeInTheDocument();
+    rerender(<MatchedDataset a={analysis({}, { input_type: "uploaded_file" })} />);
+    expect(container).toBeEmptyDOMElement();
   });
 });

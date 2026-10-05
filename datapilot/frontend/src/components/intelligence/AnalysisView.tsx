@@ -1,5 +1,5 @@
 import { Rich } from "@/components/chat/Rich";
-import { Database, ExternalLink, Target } from "lucide-react";
+import { CheckCircle2, Database, ExternalLink, Target } from "lucide-react";
 import type { ReactNode } from "react";
 import { Badge, type Tone } from "@/components/ui/badge";
 import { Disclosure } from "@/components/ui/disclosure";
@@ -86,7 +86,52 @@ function WebSources({ a }: { a: DatasetAnalysisResponse["analysis"] }) {
   );
 }
 
-export function AnalysisView({ data, onResearch, busy }: { data: DatasetAnalysisResponse; onResearch?: (request: ResearchRequest, label: string) => void; busy?: boolean }) {
+/**
+ * "Is this the dataset you meant?" When the user gave only a name, DataPilot says exactly which dataset it matched, where
+ * it lives, and how sure it is, and offers the other datasets that share the name. Nothing here is hidden behind a guess.
+ */
+export function MatchedDataset({ a, onSwitch, busy }: { a: DatasetAnalysisResponse["analysis"]; onSwitch?: (url: string, name: string) => void; busy?: boolean }) {
+  const res = a.input_resolution;
+  if (res.input_type !== "public_dataset_name" && res.input_type !== "ambiguous_dataset_reference") return null;
+  const id = a.dataset_identity;
+  const link = safeUrl(id.url);
+  const alternatives = (res.alternatives ?? []).filter((alt) => safeUrl(alt.url));
+  const sure = res.resolution_status === "resolved";
+  return (
+    <section className="rounded-xl border border-accent/25 bg-accent-soft/20 p-5" aria-label="Matched dataset">
+      <div className="flex flex-wrap items-center gap-2.5">
+        <CheckCircle2 className="size-4 text-accent" aria-hidden />
+        <h3 className="text-[15px] font-semibold">{sure ? "Matched dataset" : "Is this the dataset you meant?"}</h3>
+        <Badge tone={sure ? "success" : "warning"}>{sure ? "Only match" : "Best of several"}</Badge>
+      </div>
+      <p className="mt-2.5 text-[14.5px] leading-6">
+        <strong className="font-semibold">{id.name}</strong>
+        {id.source ? <span className="text-muted-foreground"> · {humanize(id.source)}</span> : null}
+        {link ? <a href={link} target="_blank" rel="noopener noreferrer nofollow" className="ml-2 inline-flex items-center gap-1 text-[13px] text-accent hover:underline">Open <ExternalLink className="size-3.5" aria-hidden /></a> : null}
+      </p>
+      <p className="mt-1.5 text-[13.5px] leading-6 text-muted-foreground">
+        {res.clarification ?? "Exactly one public dataset has this name."}{" "}
+        {sure ? "If it is not the one you meant, paste its link or upload the file." : ""}
+      </p>
+      {alternatives.length > 0 && onSwitch && (
+        <div className="mt-4">
+          <p className="text-xs font-medium uppercase tracking-wider text-subtle">Not this one? Analyze another</p>
+          <div className="mt-2 flex flex-wrap gap-2.5">
+            {alternatives.slice(0, 4).map((alt) => (
+              <button key={`${alt.source}-${alt.identifier}`} type="button" disabled={busy}
+                onClick={() => onSwitch(alt.url as string, alt.name)}
+                className="rounded-full border border-border bg-raised px-4 py-2 text-[13.5px] transition-colors hover:border-accent/50 hover:bg-muted disabled:opacity-50">
+                {alt.name} <span className="text-subtle">· {humanize(alt.source)}{alt.column_count ? ` · ${alt.column_count} columns` : ""}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+export function AnalysisView({ data, onResearch, onSwitchDataset, busy }: { data: DatasetAnalysisResponse; onResearch?: (request: ResearchRequest, label: string) => void; onSwitchDataset?: (url: string, name: string) => void; busy?: boolean }) {
   const a = data.analysis;
   const pi = data.project_intelligence;
   const parsed = a.mode === "file_parsed";
@@ -97,6 +142,8 @@ export function AnalysisView({ data, onResearch, busy }: { data: DatasetAnalysis
 
   return (
     <div className="space-y-7">
+      <MatchedDataset a={a} onSwitch={onSwitchDataset} busy={busy} />
+
       <p className="flex items-start gap-2.5 rounded-xl border border-border bg-surface/60 px-3.5 py-3 text-[13.5px] leading-6 text-muted-foreground">
         <Database className="mt-1 size-4 shrink-0 text-accent" aria-hidden />
         <span>{data.evidence_statement}</span>
