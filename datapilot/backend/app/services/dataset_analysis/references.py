@@ -24,6 +24,7 @@ ALLOWED_HOSTS: dict[str, str] = {
     "kaggle.com": "kaggle",
     "www.kaggle.com": "kaggle",
     "huggingface.co": "huggingface",
+    "datasets-server.huggingface.co": "huggingface",
     "www.huggingface.co": "huggingface",
     "archive.ics.uci.edu": "uci",
     "openml.org": "openml",

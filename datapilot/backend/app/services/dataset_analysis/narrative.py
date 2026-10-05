@@ -34,6 +34,13 @@ def headline(analysis: DatasetAnalysis) -> str:
             "about it has been verified."
         )
     level = analysis.schema_info.level
+    if level is EvidenceLevel.AI_INFERRED:
+        return (
+            "DataPilot found this dataset through a web search. Its columns were read by AI from the cited pages, "
+            "so treat them as a lead to confirm; the raw file has not been parsed."
+        )
+    if level is EvidenceLevel.REGISTRY_VERIFIED and analysis.schema_info.source.startswith("file header"):
+        return "DataPilot read the real column header from the dataset's file, but has not analysed the data itself."
     if level is EvidenceLevel.UNKNOWN:
         return (
             "The public source does not expose enough schema information to verify the dataset "
@@ -62,7 +69,11 @@ def evidence_statement(analysis: DatasetAnalysis) -> str:
         return "No registry record was found, so there is no verified information about this dataset."
     schema = analysis.schema_info
     pieces = [f"Everything here comes from {meta.source}'s published metadata"]
-    if schema.level is EvidenceLevel.REGISTRY_VERIFIED:
+    if schema.level is EvidenceLevel.AI_INFERRED:
+        pieces.append("the column list was read by an AI model from web pages cited below, and is not verified")
+    elif schema.level is EvidenceLevel.REGISTRY_VERIFIED and schema.source.startswith("file header"):
+        pieces.append("the column names and types were read from the first few KB of the dataset's own file")
+    elif schema.level is EvidenceLevel.REGISTRY_VERIFIED:
         pieces.append("the column list is the registry's own structured schema")
     elif schema.level is EvidenceLevel.INFERRED:
         pieces.append("the column list was inferred from the owner's description and may be incomplete")
@@ -97,6 +108,8 @@ def next_step(analysis: DatasetAnalysis) -> str:
         return "Check the dataset's name or link, or upload the file."
     if analysis.schema_info.level is EvidenceLevel.UNKNOWN:
         return "Upload the dataset file: the public source does not publish its columns, so nothing else can be verified."
+    if analysis.schema_info.level is EvidenceLevel.AI_INFERRED:
+        return "Check the cited sources to confirm this is the dataset you mean, then upload the file for verified analysis."
     return (
         "Upload the actual file for row-level statistics, data-quality checks and real feature "
         "importance; until then, treat everything here as the registry's description of the dataset."

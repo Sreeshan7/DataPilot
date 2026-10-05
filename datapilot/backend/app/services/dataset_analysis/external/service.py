@@ -29,6 +29,7 @@ from __future__ import annotations
 import asyncio
 import re
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from typing import Optional
 
 from app.core.config import Settings
@@ -41,15 +42,18 @@ from app.schemas.dataset_analysis import (
     ExternalMetadata,
     InputType,
     ResolutionStatus,
+    WebSource,
 )
 from app.schemas.project import ErrorCode
 from app.services.dataset_analysis.errors import AnalysisError
 from app.services.dataset_analysis.external.adapters import (
     ExternalAdapter,
     ExternalHit,
+    _schema_columns,
     build_adapters,
 )
 from app.services.dataset_analysis.external.fetcher import FetchError, SafeFetcher
+from app.services.dataset_analysis.external.web_knowledge import WebDatasetResearcher
 from app.services.dataset_analysis.references import normalize_dataset_name
 from app.services.datasets.deduplicator import name_token_key
 
@@ -128,14 +132,73 @@ class ExternalDatasetMetadataService:
         settings: Settings,
         fetcher: Optional[SafeFetcher] = None,
         adapters: Optional[list[ExternalAdapter]] = None,
+        web_researcher: Optional[WebDatasetResearcher] = None,
     ) -> None:
         self._settings = settings
+        self._web = web_researcher if web_researcher is not None else WebDatasetResearcher(settings)
         self._fetcher = fetcher or SafeFetcher(settings)
         self._adapters = adapters if adapters is not None else build_adapters(settings, self._fetcher)
 
     # ------------------------------------------------------------------
 
     async def research(self, resolution: DatasetInputResolution) -> ExternalResearch:
+        result = await self._registries(resolution)
+        return await self._augment_from_web(result, resolution)
+
+    async def _augment_from_web(self, result: ExternalResearch, resolution: DatasetInputResolution) -> ExternalResearch:
+        """Last resort: ask the web (one cached, grounded call) when no registry could give the structure."""
+        meta = result.metadata
+        specific_unknown_name = (
+            meta is None and resolution.input_type is InputType.PUBLIC_DATASET_NAME
+            and result.resolution.resolution_status is ResolutionStatus.UNRESOLVED and not result.resolution.alternatives
+        )
+        if self._web is None or not (specific_unknown_name or (meta is not None and not meta.schema_columns)):
+            return result
+        name = meta.name if meta else (result.resolution.normalized_dataset_name or "")
+        if not name:
+            return result
+        knowledge, why = await self._web.lookup(name, meta.url if meta else None, result.resolution.source)
+        if knowledge is None:
+            if why and "turned off" not in why:
+                result.limitations.append(f"A web lookup for the dataset's structure found nothing ({why}).")
+            return result
+        columns = _schema_columns([(c.name, c.kind, None, None) for c in knowledge.columns], EvidenceLevel.AI_INFERRED)
+        web_sources = [WebSource(title=t, url=u) for t, u in knowledge.sources]
+        note = (
+            "No registry published this dataset's columns, so a web search was used: the column list below was read by "
+            "an AI model from the cited pages. It is a lead to confirm, not a verified or parsed schema."
+        )
+        common = dict(
+            schema_columns=columns, schema_level=EvidenceLevel.AI_INFERRED, schema_source="web search (AI-read, cited)",
+            schema_note=note, web_sources=web_sources)
+        if meta is not None:
+            rows_from_web = meta.row_count is None and knowledge.row_count is not None
+            enriched = meta.model_copy(update={
+                **common, "row_count": meta.row_count if meta.row_count is not None else knowledge.row_count,
+                "row_count_evidence": EvidenceLevel.AI_INFERRED if rows_from_web else meta.row_count_evidence,
+                "description": meta.description or knowledge.description})
+            resolution_out = result.resolution.model_copy(update={
+                "schema_available": True, "schema_evidence_level": EvidenceLevel.AI_INFERRED,
+                "available_metadata": sorted(set(result.resolution.available_metadata) | {"schema"})})
+        else:
+            enriched = ExternalMetadata(
+                source="web", identifier=re.sub(r"[^a-z0-9]+", "-", (knowledge.name or name).lower()).strip("-")[:80] or "web",
+                name=knowledge.name or name, description=knowledge.description, row_count=knowledge.row_count,
+                row_count_evidence=EvidenceLevel.AI_INFERRED, evidence_level=EvidenceLevel.AI_INFERRED,
+                retrieved_at=datetime.now(timezone.utc), **common)
+            resolution_out = result.resolution.model_copy(update={
+                "source": "web", "resolution_status": ResolutionStatus.PROBABLE, "resolution_confidence": 0.4,
+                "evidence": result.resolution.evidence + ["no registry knows this name; found through a web search"],
+                "schema_available": True, "schema_evidence_level": EvidenceLevel.AI_INFERRED,
+                "needs_confirmation": True,
+                "clarification": "No dataset registry lists this name; DataPilot found it through a web search. "
+                                 "Check the sources below to confirm it is the dataset you mean."})
+        return ExternalResearch(
+            resolution=resolution_out, metadata=enriched, conflicts=result.conflicts,
+            limitations=result.limitations + ["The structure comes from a web search read by AI, not from a registry or the file."],
+            warnings=result.warnings)
+
+    async def _registries(self, resolution: DatasetInputResolution) -> ExternalResearch:
         if not self._settings.external_enabled:
             return ExternalResearch(
                 resolution=resolution,

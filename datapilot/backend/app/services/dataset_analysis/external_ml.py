@@ -39,6 +39,12 @@ from app.services.dataset_analysis.targets import (
 registry = EvidenceLevel.REGISTRY_VERIFIED
 heuristic = EvidenceLevel.HEURISTIC
 
+#: Words that, in a column name, usually mean "the thing being measured or decided" rather than an input.
+_OUTCOME_WORDS = frozenset({
+    "score", "scores", "grade", "grades", "mark", "marks", "price", "cost", "salary", "rating", "revenue", "sales",
+    "result", "outcome", "label", "class", "target", "status", "churn", "survived", "diagnosis", "default",
+    "fraud", "income", "demand", "yield", "attrition",
+})
 _NUMERIC_TYPES = {"continuous", "numeric", "real", "float", "double"}
 _CATEGORICAL_TYPES = {"categorical", "nominal", "string", "binary", "boolean", "class_label", "category"}
 
@@ -96,8 +102,19 @@ def detect_external_targets(
         score += name_score
         evidence.extend(name_evidence)
         if column.data_type:
+            from_ai = column.evidence is EvidenceLevel.AI_INFERRED
             evidence.append(EvidenceItem(
-                statement=f"the registry lists its type as {column.data_type}", level=registry))
+                statement=(f"web sources (read by AI, not verified) list its type as {column.data_type}" if from_ai
+                           else f"the source lists its type as {column.data_type}"),
+                level=EvidenceLevel.AI_INFERRED if from_ai else registry))
+            if position == len(columns) - 1 and column.data_type.lower() not in ("text", "string"):
+                score += 1.0
+                evidence.append(EvidenceItem(
+                    statement=f"is the last column and a {column.data_type.lower()} one, where datasets usually put the outcome",
+                    level=heuristic))
+        if _OUTCOME_WORDS & set(re.split(r"[^a-z0-9]+", column.normalized_name.lower())):
+            score += 1.0
+            evidence.append(EvidenceItem(statement="its name describes a measured outcome (score, price, status...)", level=heuristic))
         against.append("no rows were read, so its values, balance and missingness are unknown")
 
         if is_designated or is_hinted:

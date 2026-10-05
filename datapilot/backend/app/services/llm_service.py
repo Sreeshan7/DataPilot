@@ -282,6 +282,45 @@ class LLMService:
                 message="An unexpected error occurred during dataset discovery.",
             ) from exc
 
+    async def search_grounded(self, prompt: str, system: str) -> tuple[str, list[tuple[str, str]]]:
+        """One Gemini call with Google Search grounding. Returns (text, [(title, url)]) where the sources come from
+        the search grounding metadata, never from the model's own text. Not retried: the free tier is small."""
+        if not self._client:
+            raise LLMServiceError(code="LLM_UNAVAILABLE", message="Gemini client is not configured. Check GEMINI_API_KEY.")
+        client = self._client
+        model = self._settings.gemini_model
+
+        def call():
+            return client.models.generate_content(
+                model=model, contents=prompt,
+                config=types.GenerateContentConfig(
+                    system_instruction=system, tools=[types.Tool(google_search=types.GoogleSearch())],
+                    temperature=0.0, max_output_tokens=2048))
+
+        try:
+            response = await asyncio.to_thread(call)
+        except genai.errors.ClientError as exc:
+            error_str = str(exc).lower()
+            if "rate" in error_str or "quota" in error_str or "429" in error_str:
+                raise LLMServiceError(code="LLM_RATE_LIMITED", message="Gemini rate limit or quota exceeded.") from exc
+            if "api key" in error_str or "auth" in error_str or "permission" in error_str:
+                raise LLMServiceError(code="LLM_AUTHENTICATION_ERROR", message="Gemini authentication failed.") from exc
+            raise LLMServiceError(code="LLM_UNAVAILABLE", message=f"Gemini API error: {type(exc).__name__}") from exc
+        except TimeoutError as exc:
+            raise LLMServiceError(code="LLM_TIMEOUT", message="Gemini request timed out.") from exc
+        except Exception as exc:
+            logger.error("Unexpected Gemini grounded-search error: %s", type(exc).__name__)
+            raise LLMServiceError(code="LLM_UNAVAILABLE", message="An unexpected error occurred during the web lookup.") from exc
+        sources: list[tuple[str, str]] = []
+        for candidate in getattr(response, "candidates", None) or []:
+            metadata = getattr(candidate, "grounding_metadata", None)
+            for chunk in getattr(metadata, "grounding_chunks", None) or []:
+                web = getattr(chunk, "web", None)
+                uri = getattr(web, "uri", None)
+                if uri and all(uri != u for _, u in sources):
+                    sources.append((getattr(web, "title", None) or "", uri))
+        return (response.text or ""), sources
+
     async def generate_research_synthesis(self, user_prompt: str) -> LLMResearchSynthesis:
         """The single structured call that interprets retrieved research evidence.
 

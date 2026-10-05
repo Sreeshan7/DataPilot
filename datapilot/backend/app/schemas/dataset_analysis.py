@@ -478,6 +478,13 @@ class TaskCandidate(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+class WebSource(BaseModel):
+    """A page a web search cited, shown so the user can check it themselves."""
+
+    title: str = ""
+    url: str
+
+
 class ExternalMetadata(BaseModel):
     """What a registry published about a dataset. Never row-level facts it did not state."""
 
@@ -502,6 +509,11 @@ class ExternalMetadata(BaseModel):
     )
     evidence_level: EvidenceLevel = EvidenceLevel.REGISTRY_VERIFIED
     retrieved_at: Optional[datetime] = None
+    row_count_evidence: EvidenceLevel = EvidenceLevel.REGISTRY_VERIFIED
+    web_sources: list[WebSource] = Field(
+        default_factory=list,
+        description="Pages a web search cited; present only when the structure was found that way (AI_INFERRED).",
+    )
     schema_columns: list[SchemaColumn] = Field(default_factory=list)
     schema_level: EvidenceLevel = EvidenceLevel.UNKNOWN
     schema_source: str = "none"

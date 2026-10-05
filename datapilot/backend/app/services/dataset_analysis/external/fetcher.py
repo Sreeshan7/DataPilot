@@ -103,6 +103,78 @@ class SafeFetcher:
             if owner:
                 await client.aclose()
 
+    async def get_prefix(
+        self,
+        url: str,
+        headers: Optional[dict[str, str]] = None,
+        *,
+        max_bytes: int,
+        storage_hosts: frozenset[str],
+    ) -> tuple[bytes, Optional[int]]:
+        """Read only the first ``max_bytes`` of a file: its header and a few rows, never the dataset.
+
+        ``url`` must pass the usual registry validation. The registry may answer with one redirect to a file store; that
+        is followed only if the target is https on a host in ``storage_hosts`` (no credentials, no IP literals, default
+        port), and the credential is never sent there. The body is read as a stream and abandoned at ``max_bytes`` even
+        if the server ignores the Range request. Returns ``(bytes, total_size_if_known)``. The redirect target is a
+        signed URL and is never logged or returned.
+        """
+        try:
+            current = validate_public_url(url)
+        except UnsafeURLError as exc:
+            raise FetchError(FetchError.UNSAFE, f"Refused to contact that address: {exc}") from exc
+        owner = self._client is None
+        client = self._client or httpx.AsyncClient(timeout=self._settings.external_request_timeout)
+        send = dict(headers or {})
+        try:
+            for hop in range(2):
+                request_headers = {**send, "Range": f"bytes=0-{max_bytes - 1}", "Accept": "*/*"}
+                async with client.stream("GET", current, headers=request_headers, follow_redirects=False,
+                                         timeout=self._settings.external_request_timeout) as response:
+                    status = response.status_code
+                    if status in _REDIRECT_STATUSES:
+                        location = response.headers.get("location")
+                        if hop or not location:
+                            raise FetchError(FetchError.UNAVAILABLE, "The file could not be located.")
+                        target = urljoin(current, location)
+                        parts = urlsplit(target)
+                        host = (parts.hostname or "").lower()
+                        if (parts.scheme != "https" or host not in storage_hosts or parts.username or parts.password
+                                or parts.port not in (None, 443)):
+                            raise FetchError(FetchError.UNSAFE, "The registry redirected to an address that is not allowed.")
+                        current = target
+                        send.pop("Authorization", None)  # a credential belongs to one host
+                        continue
+                    if status == 404:
+                        raise FetchError(FetchError.NOT_FOUND, "The file was not found.")
+                    if status == 429:
+                        raise FetchError(FetchError.RATE_LIMITED, "The source's rate limit was reached. Try again shortly.")
+                    if status not in (200, 206):
+                        raise FetchError(FetchError.UNAVAILABLE, f"The file could not be read ({status}).")
+                    total: Optional[int] = None
+                    content_range = response.headers.get("content-range", "")
+                    if "/" in content_range and content_range.rsplit("/", 1)[1].isdigit():
+                        total = int(content_range.rsplit("/", 1)[1])
+                    elif status == 200 and response.headers.get("content-length", "").isdigit():
+                        total = int(response.headers["content-length"])
+                    chunks: list[bytes] = []
+                    got = 0
+                    async for chunk in response.aiter_bytes():
+                        chunks.append(chunk)
+                        got += len(chunk)
+                        if got >= max_bytes:
+                            break  # closing the stream abandons the rest of the file
+                    return b"".join(chunks)[:max_bytes], total
+            raise FetchError(FetchError.UNAVAILABLE, "The file could not be located.")
+        except httpx.TimeoutException as exc:
+            raise FetchError(FetchError.TIMEOUT, "The source did not respond in time.") from exc
+        except httpx.HTTPError as exc:
+            logger.info("File prefix request failed (%s)", type(exc).__name__)
+            raise FetchError(FetchError.UNAVAILABLE, "The file could not be reached.") from exc
+        finally:
+            if owner:
+                await client.aclose()
+
     async def _request(
         self,
         client: httpx.AsyncClient,

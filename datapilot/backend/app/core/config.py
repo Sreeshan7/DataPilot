@@ -115,6 +115,11 @@ class Settings(BaseSettings):
     task_max_classes: int = 20
 
     # --- Phase 4: external dataset research (metadata only, never the data) ---
+    #: Read only the first 64 KB of a Kaggle dataset's main csv to get its real column header (never the dataset).
+    external_peek_enabled: bool = True
+    #: Last resort when no registry knows a dataset's structure: one cached Gemini + Google Search lookup.
+    web_lookup_enabled: bool = True
+    web_lookup_timeout_seconds: float = 45.0
     external_enabled: bool = True
     external_request_timeout: float = 15.0
     # Responses are streamed and cut off here; a registry record is a few KB, so a

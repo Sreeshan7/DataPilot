@@ -272,6 +272,11 @@ class DatasetAnalysisService:
             limitations.append(NOT_PARSED_LIMITATION)
             if not meta.schema_columns:
                 limitations.append(NO_SCHEMA_LIMITATION)
+            elif meta.schema_level is EvidenceLevel.AI_INFERRED:
+                limitations.append(
+                    "The column list was found by an AI model reading web pages (see the cited sources), not published "
+                    "by a registry or parsed from a file, so it may be incomplete or wrong. Confirm it, or upload the file."
+                )
             elif meta.schema_level is not EvidenceLevel.REGISTRY_VERIFIED:
                 limitations.append(
                     "The column list was read from the description's text, not published as structured "
@@ -310,7 +315,7 @@ class DatasetAnalysisService:
                 level=EvidenceLevel.UNKNOWN, source="none", confidence=0.0,
                 column_count=meta.column_count if meta else None,
                 row_count=meta.row_count if meta else None,
-                row_count_evidence=EvidenceLevel.REGISTRY_VERIFIED if meta and meta.row_count is not None else EvidenceLevel.UNKNOWN,
+                row_count_evidence=meta.row_count_evidence if meta and meta.row_count is not None else EvidenceLevel.UNKNOWN,
                 note=(meta.schema_note if meta else "No dataset was identified, so no schema is known."),
             )
         return SchemaInfo(
@@ -319,7 +324,7 @@ class DatasetAnalysisService:
             confidence=0.95 if meta.schema_level is EvidenceLevel.REGISTRY_VERIFIED else 0.5,
             column_count=len(meta.schema_columns),
             row_count=meta.row_count,
-            row_count_evidence=EvidenceLevel.REGISTRY_VERIFIED if meta.row_count is not None else EvidenceLevel.UNKNOWN,
+            row_count_evidence=meta.row_count_evidence if meta.row_count is not None else EvidenceLevel.UNKNOWN,
             columns=list(meta.schema_columns),
             note=meta.schema_note,
         )

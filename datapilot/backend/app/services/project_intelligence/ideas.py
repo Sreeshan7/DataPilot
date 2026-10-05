@@ -97,7 +97,8 @@ def _basis(analysis: DatasetAnalysis) -> EvidenceLevel:
     if analysis.mode is AnalysisMode.FILE_PARSED:
         return EvidenceLevel.DATAPILOT_PARSED
     level = analysis.schema_info.level
-    return level if level in (EvidenceLevel.REGISTRY_VERIFIED, EvidenceLevel.INFERRED) else EvidenceLevel.INFERRED
+    known = (EvidenceLevel.REGISTRY_VERIFIED, EvidenceLevel.INFERRED, EvidenceLevel.AI_INFERRED)
+    return level if level in known else EvidenceLevel.INFERRED
 
 
 def _feature_lists(

@@ -26,6 +26,7 @@ from urllib.parse import quote
 from app.core.config import Settings
 from app.schemas.dataset_analysis import EvidenceLevel, ExternalMetadata, SchemaColumn
 from app.services.dataset_analysis.external.fetcher import FetchError, SafeFetcher
+from app.services.dataset_analysis.external.peek import PEEK_BYTES, choose_file, sample_schema
 from app.services.dataset_analysis.external.prose import extract_columns
 from app.services.dataset_analysis.ingestion import normalize_column_names
 
@@ -354,6 +355,34 @@ class HuggingFaceAdapter(ExternalAdapter):
             ))
         return hits
 
+    async def _server_schema(self, identifier: str):
+        """([(name, dtype, None, note)], row_count) from datasets-server, or None if it has nothing usable."""
+        try:
+            body = await self._fetcher.get_json(
+                "https://datasets-server.huggingface.co/info", {"dataset": identifier},
+                not_found_statuses=frozenset({401, 403, 404, 422}))
+        except FetchError:
+            return None
+        info = body.get("dataset_info") if isinstance(body, dict) else None
+        if not isinstance(info, dict) or not info:
+            return None
+        config = next((c for c in info.values() if isinstance(c, dict) and isinstance(c.get("features"), dict)), None)
+        if config is None:
+            return None
+        pairs: list[tuple[str, Optional[str], Optional[str], Optional[str]]] = []
+        for name, feature in list(config["features"].items())[:500]:
+            if not isinstance(feature, dict):
+                continue
+            if feature.get("_type") == "ClassLabel" and isinstance(feature.get("names"), list):
+                dtype: Any = {"class_label": {"names": feature["names"]}}
+            else:
+                dtype = feature.get("dtype") or feature.get("_type")
+            pairs.append((str(name), _hf_dtype(dtype), None, _hf_class_note(dtype)))
+        splits = config.get("splits") if isinstance(config.get("splits"), dict) else {}
+        counts = [_int(s.get("num_examples")) for s in splits.values() if isinstance(s, dict)]
+        counts = [c for c in counts if c is not None]
+        return (pairs, sum(counts) if counts else None) if pairs else None
+
     async def fetch(self, identifier: str) -> ExternalMetadata:
         # A missing dataset and a private one are indistinguishable here (both answer 401).
         record = await self._fetcher.get_json(
@@ -378,18 +407,27 @@ class HuggingFaceAdapter(ExternalAdapter):
                         _hf_class_note(feature.get("dtype")),
                     ))
         columns = _schema_columns(pairs, EvidenceLevel.REGISTRY_VERIFIED)
+        from_server, server_rows = False, None
+        if not columns:
+            # The card lists no features (most datasets), but Hugging Face's own datasets-server knows them.
+            served = await self._server_schema(identifier)
+            if served:
+                columns = _schema_columns(served[0], EvidenceLevel.REGISTRY_VERIFIED)
+                from_server, server_rows = True, served[1]
 
         rows = None
         if configs:
             counts = [_int(s.get("num_examples")) for s in _as_list(configs[0].get("splits")) if isinstance(s, dict)]
             counts = [c for c in counts if c is not None]
             rows = sum(counts) if counts else None
+        rows = rows if rows is not None else server_rows
         size = _int(configs[0].get("dataset_size")) if configs else None
 
         level, source, note = EvidenceLevel.UNKNOWN, "none", "Hugging Face published no structured column list for this dataset."
         description = (record.get("description") or "").strip() or None
         if columns:
-            level, source, note = EvidenceLevel.REGISTRY_VERIFIED, "Hugging Face dataset_info.features", None
+            level, note = EvidenceLevel.REGISTRY_VERIFIED, None
+            source = "Hugging Face datasets-server info" if from_server else "Hugging Face dataset_info.features"
             if len(configs) > 1:
                 note = "The dataset has several configurations; the first one's columns are listed."
         else:
@@ -493,6 +531,30 @@ class KaggleAdapter(ExternalAdapter):
 
         prose, method = extract_columns(body if isinstance(body, str) else None)
         columns = _schema_columns([(n, None, None, None) for n in prose], EvidenceLevel.INFERRED) if prose else []
+        level = EvidenceLevel.INFERRED if columns else EvidenceLevel.UNKNOWN
+        source = f"description ({method})" if columns else "none"
+        note = (
+            "Kaggle publishes no structured schema; these column names were read from the "
+            "owner's description and may be incomplete or inexact."
+            if columns else
+            "Kaggle publishes no structured schema and the description does not list the columns."
+        )
+        peeked = await self._peek_header(identifier, names)
+        estimated_rows: Optional[int] = None
+        if isinstance(peeked, tuple):
+            file_name, sample = peeked
+            columns = _schema_columns([(c.name, c.kind, c.role, None) for c in sample.columns], EvidenceLevel.REGISTRY_VERIFIED)
+            level = EvidenceLevel.REGISTRY_VERIFIED
+            source = f"file header (first {sample.bytes_read // 1024} KB of {file_name}, read from Kaggle)"
+            rows = estimated_rows = sample.estimated_rows
+            note = (
+                f"Column names and types were read from the first {sample.bytes_read // 1024} KB of {file_name}, "
+                f"the dataset's own file ({sample.sample_rows} sample rows). Nothing else was read"
+                + (f"; the file has roughly {rows:,} rows, estimated from its size" if rows else "")
+                + ". Missingness, balance and feature importance need the whole file."
+            )
+        elif isinstance(peeked, str):
+            note = f"{note} (Reading the file's header was not possible: {peeked}.)"
         extensions = sorted({"." + n.rsplit(".", 1)[-1].lower() for n in names if "." in n})
         return ExternalMetadata(
             source="kaggle",
@@ -509,15 +571,28 @@ class KaggleAdapter(ExternalAdapter):
             updated_at=_when(_kf(view, "lastUpdated")),
             retrieved_at=datetime.now(timezone.utc),
             schema_columns=columns,
-            schema_level=EvidenceLevel.INFERRED if columns else EvidenceLevel.UNKNOWN,
-            schema_source=f"description ({method})" if columns else "none",
-            schema_note=(
-                "Kaggle publishes no structured schema; these column names were read from the "
-                "owner's description and may be incomplete or inexact."
-                if columns else
-                "Kaggle publishes no structured schema and the description does not list the columns."
-            ),
+            schema_level=level,
+            schema_source=source,
+            schema_note=note,
+            row_count=estimated_rows,
+            row_count_evidence=EvidenceLevel.INFERRED if estimated_rows else EvidenceLevel.REGISTRY_VERIFIED,
         )
+
+    async def _peek_header(self, identifier: str, names: list[str]):
+        """(file name, SampleSchema) from the head of the main csv, a reason string if it failed, or None if not tried."""
+        if not (self._settings.external_peek_enabled and self._settings.kaggle_api_token):
+            return None
+        file_name = choose_file(names)
+        if file_name is None:
+            return None
+        url = f"{self._base}/datasets/download/{identifier}?fileName={quote(file_name, safe='')}"
+        try:
+            raw, total = await self._fetcher.get_prefix(
+                url, self._headers(), max_bytes=PEEK_BYTES, storage_hosts=frozenset({"storage.googleapis.com"}))
+        except FetchError as exc:
+            return exc.message.rstrip(".").lower()
+        sample = sample_schema(raw, total)
+        return (file_name, sample) if sample else "the file does not start with a recognisable header row"
 
 
 def build_adapters(settings: Settings, fetcher: SafeFetcher) -> list[ExternalAdapter]:
