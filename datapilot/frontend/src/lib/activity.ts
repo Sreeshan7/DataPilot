@@ -85,7 +85,10 @@ export function traceFromAnalysis(r: DatasetAnalysisResponse): TraceStep[] {
     const src = a.external?.source;
     out.push(step("lookup", src ? `Looked up ${src}` : "Looked up the dataset", a.external ? a.external.name : "no registry record found", a.external ? "done" : "skipped"));
     const cols = a.schema.column_count;
-    out.push(step("schema", "Read the published schema", cols ? `${cols} columns, ${a.schema.level.replace(/_/g, " ")}` : "no schema is published", cols ? "done" : "skipped"));
+    const label = a.schema.level === "ai_inferred" ? "Searched the web for the structure (AI-read, unverified)"
+      : a.schema.source.startsWith("file header") ? "Read the column header from the dataset's file"
+      : "Read the published schema";
+    out.push(step("schema", label, cols ? `${cols} columns` : "no schema is published", cols ? "done" : "skipped"));
     out.push(step("norows", "Rows were not read", "statistics and quality checks need the file", "skipped"));
   }
   if (pi) {

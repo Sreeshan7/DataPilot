@@ -109,6 +109,43 @@ columns were recommended (across 6 seeds, 5 of 708 = 0.7%; 11 of 12 true drivers
 
 Ranking benchmark (User A) is unchanged by Phases 4/5: NDCG@5 0.9546 (0.9866 graded), P@1 0.9032 (0.9811 graded).
 
+## Schema discovery for datasets known only by name or link (added after user testing)
+
+Problem found by the user: analysing a Kaggle dataset by link or name showed only blanks, because Kaggle publishes
+no schema. Fixed with a ladder, each rung labelled as exactly what it is:
+
+1. **Registry structured schema** (UCI, OpenML, HF card) = `registry_verified`.
+2. **Hugging Face datasets-server** (`/info`) when the card lists no features = `registry_verified` (real feature
+   types and row counts).
+3. **The dataset file's own header** (Kaggle): `SafeFetcher.get_prefix` reads only the first 64 KB of the main
+   csv/tsv (Kaggle redirects to `storage.googleapis.com`; that exact host only, https, default port, credential
+   never forwarded, signed URL never logged, body abandoned at the cap even if Range is ignored). `peek.py`
+   returns column names, kinds (Continuous/Integer/Binary/Categorical/Text, from <=300 sampled rows), unique-per-row
+   identifier roles and a **row estimate from file size** (`row_count_evidence = inferred`, shown as "~N").
+   No cell value leaves the module. Evidence level stays `registry_verified` with `schema_source` "file header
+   (first N KB of X.csv, read from Kaggle)". Switch: `EXTERNAL_PEEK_ENABLED`.
+4. **Last resort, web lookup** (`web_knowledge.py`): when no registry knows a name, or a record has no columns
+   and no readable header: ONE cached Gemini + Google Search grounding call. Rejected unless real grounded
+   source links come back; reply validated field by field; result is `ai_inferred` (columns, rows), carries
+   `web_sources`, resolution is PROBABLE at <= 0.5 confidence with "confirm it" wording, never STRONG targets,
+   never a compatibility MISMATCH. Quota/auth/timeout => "found nothing (reason)", never cached, never fatal.
+   Switch: `WEB_LOOKUP_ENABLED`. **Not verified live** (the Gemini free quota was exhausted while building it; it is
+   covered by 25 unit tests with a fake searcher).
+- Target cues for schema-only datasets now include a typed last column and outcome-style names (score, price,
+  status...), capped at POSSIBLE; typed columns give a task (regression for a many-valued numeric target).
+- Live results: Kaggle "Student Performance Factors" by name or link -> 20 real columns, `exam_score` possible
+  target, regression; "Exam Score Prediction Dataset" -> 13 columns; "Titanic" via OpenML; "Telco Customer Churn"
+  via Hugging Face.
+- A `GROQ_API_KEY` supplied during this work was rejected by Groq (401) and was removed from `.env`; nothing uses it.
+
+## Research providers (updated)
+
+Research now queries **OpenAlex, arXiv and Crossref** first (free, keyless, real authors/year/DOI/venue/abstract/
+citation counts, in parallel) and uses the keyless web search only as a fallback when fewer than 3 papers come back.
+This removed the "literature search temporarily unavailable" failure (the web search page rate-limited). A live run
+returned 90 results / 82 papers with real abstracts, richer method extraction and genuine reported figures.
+Metrics now require a `%` or `0.xx` form (a bare "accuracy 70" is not a metric).
+
 ## Frontend (`datapilot/frontend`)
 
 React 18 + TypeScript + Vite 5 + Tailwind 3 (Node 18 compatible), hand-written shadcn-style primitives, lucide

@@ -1,9 +1,9 @@
 import { Rich } from "@/components/chat/Rich";
-import { Database, Target } from "lucide-react";
+import { Database, ExternalLink, Target } from "lucide-react";
 import type { ReactNode } from "react";
 import { Badge, type Tone } from "@/components/ui/badge";
 import { Disclosure } from "@/components/ui/disclosure";
-import { bytes, compactNumber, humanize, percent, plural } from "@/lib/format";
+import { bytes, compactNumber, hostOf, humanize, percent, plural, safeUrl } from "@/lib/format";
 import type { DatasetAnalysisResponse, QualityFinding } from "@/types";
 import { FeaturePanel } from "./FeaturePanel";
 import { CompatibilityPanel, IdeasPanel, ModelsPanel } from "./IdeasPanel";
@@ -49,6 +49,43 @@ function Findings({ findings }: { findings: QualityFinding[] }) {
   );
 }
 
+function rowsNote(a: DatasetAnalysisResponse["analysis"], parsed: boolean, rows: number | null): string {
+  if (parsed) return a.ingestion?.truncated ? "truncated at the limit" : "read from your file";
+  if (rows == null) return "not published";
+  if (a.schema.row_count_evidence === "inferred") return "estimated from the file's size";
+  if (a.schema.row_count_evidence === "ai_inferred") return "from web sources, unverified";
+  return "reported by the registry";
+}
+
+function columnsNote(a: DatasetAnalysisResponse["analysis"], parsed: boolean): string {
+  if (parsed) return plural(a.column_profiles.length, "profiled column");
+  if (a.schema.level === "ai_inferred") return "from web sources, unverified";
+  if (a.schema.source.startsWith("file header")) return "read from the file's header";
+  return a.schema.level.replace(/_/g, " ");
+}
+
+function WebSources({ a }: { a: DatasetAnalysisResponse["analysis"] }) {
+  const sources = a.external?.web_sources ?? [];
+  if (sources.length === 0) return null;
+  return (
+    <section aria-label="Web sources" className="rounded-xl border border-warning/30 bg-warning/10 p-3.5">
+      <p className="text-[13.5px] leading-6 text-foreground/90">
+        <strong className="font-medium">Found through a web search.</strong> No dataset registry published this structure, so an AI model
+        read it from the pages below. Treat it as a lead and confirm it before relying on it.
+      </p>
+      <ul className="mt-2 space-y-1">
+        {sources.map((s) => (
+          <li key={s.url} className="text-[13px]">
+            <a href={safeUrl(s.url) ?? undefined} target="_blank" rel="noopener noreferrer nofollow" className="inline-flex items-center gap-1.5 text-accent hover:underline">
+              {s.title || hostOf(s.url) || "source"} <ExternalLink className="size-3" aria-hidden />
+            </a>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 export function AnalysisView({ data }: { data: DatasetAnalysisResponse }) {
   const a = data.analysis;
   const pi = data.project_intelligence;
@@ -65,10 +102,12 @@ export function AnalysisView({ data }: { data: DatasetAnalysisResponse }) {
         <span>{data.evidence_statement}</span>
       </p>
 
+      <WebSources a={a} />
+
       <Section title="Dataset profile">
         <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-          <Stat label="Rows" value={compactNumber(rows)} sub={parsed ? (a.ingestion?.truncated ? "truncated at the limit" : "read from your file") : rows != null ? "reported by the registry" : "not published"} />
-          <Stat label="Columns" value={compactNumber(cols)} sub={parsed ? plural(a.column_profiles.length, "profiled column") : a.schema.level.replace(/_/g, " ")} />
+          <Stat label="Rows" value={rows != null && !parsed && a.schema.row_count_evidence !== "registry_verified" ? `~${compactNumber(rows)}` : compactNumber(rows)} sub={rowsNote(a, parsed, rows)} />
+          <Stat label="Columns" value={compactNumber(cols)} sub={columnsNote(a, parsed)} />
           <Stat label="Missing" value={parsed && a.quality ? `${a.quality.overall_missing_pct.toFixed(1)}%` : "—"} sub={parsed ? "of all cells" : "needs the file"} />
           <Stat label="Duplicates" value={parsed && a.quality?.duplicate_row_count != null ? compactNumber(a.quality.duplicate_row_count) : "—"} sub={parsed ? "repeated rows" : "needs the file"} />
         </div>

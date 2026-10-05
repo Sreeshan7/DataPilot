@@ -1412,6 +1412,13 @@ export interface components {
             evidence_level: components["schemas"]["EvidenceLevel"];
             /** Retrieved At */
             retrieved_at?: string | null;
+            /** @default registry_verified */
+            row_count_evidence: components["schemas"]["EvidenceLevel"];
+            /**
+             * Web Sources
+             * @description Pages a web search cited; present only when the structure was found that way (AI_INFERRED).
+             */
+            web_sources?: components["schemas"]["WebSource"][];
             /** Schema Columns */
             schema_columns?: components["schemas"]["SchemaColumn"][];
             /** @default unknown */
@@ -3030,6 +3037,19 @@ export interface components {
          * @enum {string}
          */
         VerificationStatus: "verified" | "unverified";
+        /**
+         * WebSource
+         * @description A page a web search cited, shown so the user can check it themselves.
+         */
+        WebSource: {
+            /**
+             * Title
+             * @default
+             */
+            title: string;
+            /** Url */
+            url: string;
+        };
         /**
          * MLTask
          * @enum {string}
