@@ -369,3 +369,22 @@ both benchmark scripts (metrics above must not move unexpectedly); for registry/
   Second run: 15/15 answered, keyword precision 100% (8 papers each), 13 papers read in full text, 49 with citations,
   26 Gemini calls. The AI-judge call failed that run (a Gemini server error), so there is no AI-judged figure for it.
 - Tests: backend 2278 passed, frontend 43.
+
+## Analysing a registry dataset from the internet, robustly (2026-10-05)
+- **Root causes found on a real Kaggle dataset:** (1) Kaggle serves each file as a ZIP, so the header reader was parsing
+  compressed bytes ("no recognisable header row"); (2) Google Search grounding has no usable quota on any model for this
+  key (429 on every model, both keys), so the "web lookup" never worked.
+- **Fixes:** `peek.unpack_prefix` decodes the START of a zip (stored/deflate, zip64 sizes) or gzip stream, output bounded
+  to 1 MB; the real uncompressed size gives the row estimate. New `external/page_reader.py`: DataPilot searches the web,
+  fetches a few public pages itself (https, public hosts only, redirects re-checked, size capped), and one plain Gemini
+  call extracts column names; software then accepts a column ONLY if its name is written on a fetched page, a row count
+  only if the number is written, sources are the fetched pages (never model URLs), >= 3 verified columns required.
+  Result stays `AI_INFERRED` with cited pages. Order: registry structure -> file header -> description -> page reader ->
+  grounded search (paused for 30 min after two quota refusals in a row).
+- **Also found:** `search_grounded`/analysis Gemini calls blocked the event loop (fixed earlier today).
+- **Live checks:** Madrid real estate (Kaggle URL and name only) -> 58 columns, ~22.6k rows, target buy_price; Heart Failure and
+  Spotify tracks via Hugging Face; Red Wine via Kaggle header; the page reader alone found verified columns for Palmer
+  Penguins, Seoul Bike Sharing and Wisconsin Breast Cancer with cited pages.
+- Limits: a header read gives names and rough kinds only (no missingness/importance); the page reader depends on the keyless
+  search engine and on pages that actually list columns.
+- Tests: backend 2296 passed.

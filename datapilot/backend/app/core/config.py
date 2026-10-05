@@ -123,6 +123,9 @@ class Settings(BaseSettings):
     #: Read only the first 64 KB of a Kaggle dataset's main csv to get its real column header (never the dataset).
     external_peek_enabled: bool = True
     #: Last resort when no registry knows a dataset's structure: one cached Gemini + Google Search lookup.
+    web_reader_enabled: bool = True
+    web_reader_pages: int = 4                 # pages fetched and read per dataset lookup
+    web_reader_page_bytes: int = 400_000
     web_lookup_enabled: bool = True
     web_lookup_timeout_seconds: float = 45.0
     external_enabled: bool = True

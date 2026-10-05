@@ -73,12 +73,21 @@ async def is_public_https(url: str, resolver: Resolver = _system_resolver) -> bo
 
 async def fetch_pdf(client: httpx.AsyncClient, url: str, max_bytes: int, resolver: Resolver = _system_resolver) -> Optional[bytes]:
     """The PDF's bytes, or None when anything about the URL, the redirects, the size or the content is not acceptable."""
+    got = await fetch_limited(client, url, max_bytes, resolver, accept="application/pdf")
+    return got[0] if got is not None and got[0].startswith(b"%PDF") else None
+
+
+async def fetch_limited(
+    client: httpx.AsyncClient, url: str, max_bytes: int, resolver: Resolver = _system_resolver, accept: str = "*/*",
+) -> Optional[tuple[bytes, str]]:
+    """(body, content-type) of a public https page, or None. Same rules as above: named public host resolving to
+    public addresses (re-checked on each of <=3 redirects), size capped while streaming, no credentials."""
     current = url
     for _ in range(MAX_REDIRECTS + 1):
         if not await is_public_https(current, resolver):
             return None
         try:
-            async with client.stream("GET", current, headers={"User-Agent": _UA, "Accept": "application/pdf"},
+            async with client.stream("GET", current, headers={"User-Agent": _UA, "Accept": accept},
                                      follow_redirects=False) as response:
                 if response.status_code in (301, 302, 303, 307, 308):
                     location = response.headers.get("location")
@@ -96,7 +105,7 @@ async def fetch_pdf(client: httpx.AsyncClient, url: str, max_bytes: int, resolve
                     body.extend(chunk)
                     if len(body) > max_bytes:
                         return None  # abandoned, never buffered further
-                return bytes(body) if body.startswith(b"%PDF") else None
+                return bytes(body), response.headers.get("content-type", "").lower()
         except httpx.HTTPError:
             return None
     return None

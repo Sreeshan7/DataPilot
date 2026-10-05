@@ -19,6 +19,7 @@ from __future__ import annotations
 import asyncio
 import json
 import re
+import time
 from collections import OrderedDict
 from dataclasses import dataclass
 from typing import Optional, Protocol
@@ -123,9 +124,15 @@ def validate(text: str, sources: list[tuple[str, str]]) -> Optional[WebKnowledge
 
 
 class WebDatasetResearcher:
-    def __init__(self, settings: Settings, searcher: Optional[GroundedSearcher] = None, cache_size: int = 64) -> None:
+    GROUNDING_PAUSE_SECONDS = 1800.0  # after a quota refusal, do not spend another call on grounding for a while
+
+    def __init__(self, settings: Settings, searcher: Optional[GroundedSearcher] = None, cache_size: int = 64,
+                 reader=None) -> None:
         self._settings = settings
         self._searcher = searcher
+        self._reader = reader
+        self._grounding_paused_until = 0.0
+        self._grounding_refusals = 0
         self._cache: "OrderedDict[str, Optional[WebKnowledge]]" = OrderedDict()
         self._cache_size = cache_size
 
@@ -152,6 +159,19 @@ class WebDatasetResearcher:
         client = self._client()
         if client is None:
             return None, "no Gemini key is configured for web lookups"
+        reason = None
+        # Preferred: fetch pages ourselves and verify every claim against them. Only with a real client (or an injected
+        # reader): a test double must never lead to real network access.
+        if self._settings.web_reader_enabled and (self._reader is not None or hasattr(client, "generate_json_text")):
+            from app.services.dataset_analysis.external.page_reader import PageReader
+
+            reader = self._reader or PageReader(self._settings, writer=client if hasattr(client, "generate_json_text") else None)
+            knowledge, reason = await reader.read(name, url, source)
+            if knowledge is not None:
+                self._remember(key, knowledge)
+                return knowledge, None
+        if time.monotonic() < self._grounding_paused_until:
+            return None, reason or "web search is paused: its quota was refused moments ago"
         subject = f"the dataset at {url}" if url else f"the public dataset named '{name[:120]}'"
         prompt = (f"Find {subject}" + (f" (hosted on {source})" if source else "")
                   + ". Report its columns, row count and description only as stated by sources you find.")
@@ -163,9 +183,17 @@ class WebDatasetResearcher:
         except Exception as exc:  # quota, auth, network: the lookup is optional, so it just does not happen
             code = getattr(exc, "code", type(exc).__name__)
             logger.info("Web dataset lookup unavailable: %s", code)  # the code only, never the prompt or reply
+            if code == "LLM_RATE_LIMITED":  # two quota refusals in a row: stop spending calls on it for a while
+                self._grounding_refusals += 1
+                if self._grounding_refusals >= 2:
+                    self._grounding_paused_until = time.monotonic() + self.GROUNDING_PAUSE_SECONDS
             return None, f"the web lookup was unavailable ({code})"
+        self._grounding_refusals = 0
         knowledge = validate(text, sources)
+        self._remember(key, knowledge)
+        return knowledge, None if knowledge else (reason or "no source stated this dataset's structure")
+
+    def _remember(self, key: str, knowledge: Optional[WebKnowledge]) -> None:
         self._cache[key] = knowledge
         while len(self._cache) > self._cache_size:
             self._cache.popitem(last=False)
-        return knowledge, None if knowledge else "no source stated this dataset's structure"

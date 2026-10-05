@@ -13,6 +13,8 @@ from __future__ import annotations
 import csv
 import io
 import re
+import struct
+import zlib
 from dataclasses import dataclass
 from typing import Optional
 
@@ -116,12 +118,51 @@ def _role(name: str, values: list[str]) -> Optional[str]:
     return "row_id" if len(present) >= 100 and _kind(present) in ("Text", "Categorical") else None
 
 
+MAX_UNPACKED = 1_000_000  # bound on what a compressed prefix may expand to (a zip bomb cannot exceed this)
+
+
+def unpack_prefix(raw: bytes) -> tuple[bytes, Optional[int], bool]:
+    """(bytes, uncompressed_size_if_stated, was_compressed) for the START of a zip or gzip stream.
+
+    Registries such as Kaggle serve a single file as a one-entry zip. Only a prefix of it is ever fetched, but a
+    deflate stream can be decoded from its beginning, which is exactly the file's first rows. The output is bounded
+    by ``MAX_UNPACKED``; encrypted or malformed archives and unknown methods return the input unchanged.
+    """
+    try:
+        if raw[:4] == b"PK\x03\x04" and len(raw) > 30:
+            _, flags, method, _, _, _, csize, usize, nlen, elen = struct.unpack("<HHHHHIIIHH", raw[4:30])
+            if flags & 0x1:
+                return raw, None, False  # encrypted
+            extra = raw[30 + nlen:30 + nlen + elen]
+            size: Optional[int] = usize if 0 < usize < 0xFFFFFFFF else None
+            if usize == 0xFFFFFFFF and len(extra) >= 4 + 8:  # zip64: the real sizes live in the extra field
+                tag, length = struct.unpack("<HH", extra[:4])
+                if tag == 1 and length >= 8:
+                    size = struct.unpack("<Q", extra[4:12])[0]
+            data = raw[30 + nlen + elen:]
+            if method == 0:
+                return data[:MAX_UNPACKED], size, True
+            if method == 8:
+                return zlib.decompressobj(-zlib.MAX_WBITS).decompress(data, MAX_UNPACKED), size, True
+            return raw, None, False
+        if raw[:2] == b"\x1f\x8b":
+            return zlib.decompressobj(16 + zlib.MAX_WBITS).decompress(raw, MAX_UNPACKED), None, True
+    except (struct.error, zlib.error, ValueError):
+        pass
+    return raw, None, False
+
+
 def sample_schema(raw: bytes, total_bytes: Optional[int] = None) -> Optional[SampleSchema]:
     """Column names and kinds from the head of a delimited file, or ``None`` if it does not look like one."""
+    fetched = len(raw)
+    raw, unpacked_size, unpacked = unpack_prefix(raw)
+    if unpacked:
+        total_bytes = unpacked_size  # the transferred size is the compressed size: it says nothing about rows
     text = _decode(raw)
     if not text or "\n" not in text:
         return None
-    complete = text[: text.rfind("\n")] if len(raw) >= PEEK_BYTES - 1 else text  # a cut-off last row is dropped
+    truncated = unpacked or fetched >= PEEK_BYTES - 1
+    complete = text[: text.rfind("\n")] if truncated else text  # a cut-off last row is dropped
     first_line = complete.split("\n", 1)[0]
     try:
         dialect = csv.Sniffer().sniff(first_line, delimiters=",;\t|")
