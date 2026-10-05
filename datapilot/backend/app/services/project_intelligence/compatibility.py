@@ -191,7 +191,10 @@ def _target_dimension(
                     evidence=[EvidenceItem(statement="matched through the project's concept dictionary",
                                            level=EvidenceLevel.INFERRED)])
         resolvable = [t.column for t in candidates if index.expectation(t.column)]
-        if candidates and len(resolvable) == len(candidates):
+        # A contradiction needs a schema we can trust: parsed rows or a registry's structured schema. A column
+        # list only read from a description is often partial, so it can never prove "no column is named for it".
+        trusted = shape.parsed or shape.schema_level is EvidenceLevel.REGISTRY_VERIFIED
+        if trusted and candidates and len(resolvable) == len(candidates):
             names = ", ".join(f"'{c}'" for c in resolvable)
             return CompatibilityDimension(
                 dimension="target", status=MISMATCH,

@@ -375,3 +375,24 @@ class TestNameMatching:
 
         assert _match_column("attendance rate", {"pass_rate", "final_grade"}) is None
         assert _match_column("final grade", {"pass_rate", "final_grade"}) == "final_grade"
+
+
+class TestAnInferredSchemaCannotProveAMismatch:
+    """Found by the live UI: the dataset discovery recommended was then called 'doesn't fit' on analysis,
+    because the target mismatch fired on a column list read only from the owner's description."""
+
+    def kaggle_prose(self, mock):
+        return (mock.route("/datasets/view/", kaggle_view(description="Columns: Attendance, Family_Income, Physical_Activity, Extracurricular_Activities, Previous_Marks."))
+                .route("/datasets/list/owner/titanic", {"datasetFiles": []}))
+
+    def test_prose_columns_never_make_a_target_mismatch(self):
+        outcome = external_outcome(self.kaggle_prose, dataset_url="https://www.kaggle.com/datasets/owner/titanic")
+        assert outcome.analysis.schema_info.level is EvidenceLevel.INFERRED
+        pi = build(outcome, goal="Predict student academic performance using attendance and previous marks")
+        target = next(d for d in pi.compatibility.dimensions if d.dimension == "target")
+        assert target.status is not CS.MISMATCH
+        assert pi.compatibility.status is not CS.MISMATCH and not pi.compatibility.suggests_alternative_dataset
+
+    def test_a_registry_verified_schema_can_still_contradict(self):
+        pi = build(external_outcome(uci, dataset_name="Iris"), goal="Predict customer churn using tenure and contract")
+        assert pi.compatibility.status is CS.MISMATCH
