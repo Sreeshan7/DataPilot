@@ -33,7 +33,7 @@ from app.schemas.dataset_analysis import (
     QualityReport,
     TargetCandidate,
 )
-from app.services.dataset_analysis.association import association, sample_indices
+from app.services.dataset_analysis.association import association, looks_like_leakage, sample_indices
 from app.services.dataset_analysis.profiler import TypedColumn
 from app.services.dataset_analysis.safety import Deadline
 from app.services.dataset_analysis.targets import class_counts
@@ -297,21 +297,7 @@ def _leakage_findings(
             result = association(feature, target_col, indices, settings.task_max_classes)
             if result is None:
                 continue
-            accurate = (
-                result.single_feature_accuracy is not None
-                and result.majority_baseline is not None
-                and result.single_feature_accuracy >= settings.quality_leakage_association
-                and result.single_feature_accuracy - result.majority_baseline >= 0.05
-            )
-            # A correlation ratio is variance-based and runs above the accuracy it implies
-            # (petal length separates three iris species with ratio 0.985 but a 96.7% rule), so for
-            # it the one-column rule must also be near-perfect before this is called leakage.
-            strong_value = result.value >= settings.quality_leakage_association and not (
-                result.method == "correlation_ratio"
-                and result.single_feature_accuracy is not None
-                and result.single_feature_accuracy < settings.quality_leakage_association
-            )
-            if strong_value or accurate:
+            if looks_like_leakage(result, settings.quality_leakage_association):
                 detail = (
                     f"'{feature.name}' alone predicts '{target.column}' almost perfectly "
                     f"({result.method} {result.value:.3f}"

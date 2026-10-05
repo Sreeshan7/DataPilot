@@ -262,3 +262,30 @@ def _recode(codes: np.ndarray) -> tuple[np.ndarray, int]:
     """Compact class codes to 0..k-1 over the rows actually present."""
     unique, inverse = np.unique(codes, return_inverse=True)
     return inverse.astype(np.int64), int(unique.size)
+
+
+def looks_like_leakage(result: Association, threshold: float) -> bool:
+    """Whether one feature predicts the target so well that it is probably not a legitimate input.
+
+    A correlation ratio is variance-based and runs above the accuracy it implies (petal length
+    separates three iris species with ratio 0.985 but a 96.7% rule), so for it the one-column
+    rule must also be near-perfect. Used by both the quality findings and Phase 5 feature roles so
+    the two can never disagree about what counts as leakage.
+    """
+    accurate = (
+        result.single_feature_accuracy is not None
+        and result.majority_baseline is not None
+        and result.single_feature_accuracy >= threshold
+        and result.single_feature_accuracy - result.majority_baseline >= 0.05
+    )
+    strong_value = result.value >= threshold and not (
+        result.method == "correlation_ratio"
+        and result.single_feature_accuracy is not None
+        and result.single_feature_accuracy < threshold
+    )
+    return strong_value or accurate
+
+
+def class_codes(column: TypedColumn) -> Optional[tuple[np.ndarray, int]]:
+    """Integer class codes (-1 where missing) and the class count; ``None`` if not class-like."""
+    return _codes(column)

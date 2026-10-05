@@ -10,12 +10,14 @@ from google.genai import types
 
 from app.core.config import Settings, get_settings
 from app.core.logging_config import get_logger
+from app.prompts.project_ideas import PROJECT_IDEA_PROSE_SYSTEM_PROMPT
 from app.prompts.dataset_discovery import (
     GENAI_DATASET_DISCOVERY_SYSTEM_PROMPT,
     build_dataset_discovery_prompt,
 )
 from app.schemas.dataset import LLMDatasetDiscovery
 from app.schemas.project import LLMProjectAnalysis, ProjectAnalysisData
+from app.schemas.project_intelligence import LLMIdeaProseSet
 
 logger = get_logger(__name__)
 
@@ -276,6 +278,66 @@ class LLMService:
             raise LLMServiceError(
                 code="LLM_UNAVAILABLE",
                 message="An unexpected error occurred during dataset discovery.",
+            ) from exc
+
+    @retry_transient_unavailable
+    async def generate_project_idea_prose(self, user_prompt: str) -> LLMIdeaProseSet:
+        """One structured call that rephrases already-designed project ideas.
+
+        The prompt is built by ``prompts/project_ideas.py`` and carries no cell values. The reply is
+        untrusted: the caller validates it before using any of it.
+
+        Raises:
+            LLMServiceError: on auth, rate limit, timeout, or parse errors.
+        """
+        if not self._client:
+            raise LLMServiceError(
+                code="LLM_UNAVAILABLE",
+                message="Gemini client is not configured. Check GEMINI_API_KEY.",
+            )
+        try:
+            response = self._client.models.generate_content(
+                model=self._settings.gemini_model,
+                contents=user_prompt,
+                config=types.GenerateContentConfig(
+                    system_instruction=PROJECT_IDEA_PROSE_SYSTEM_PROMPT,
+                    response_mime_type="application/json",
+                    response_schema=LLMIdeaProseSet,
+                    temperature=0.4,
+                    max_output_tokens=4096,
+                ),
+            )
+            if response.parsed is None:
+                raise LLMServiceError(
+                    code="LLM_INVALID_RESPONSE",
+                    message="Gemini returned an empty or unparsable project idea response.",
+                )
+            return response.parsed
+        except genai.errors.ClientError as exc:
+            error_str = str(exc).lower()
+            if "api key" in error_str or "auth" in error_str or "permission" in error_str:
+                raise LLMServiceError(
+                    code="LLM_AUTHENTICATION_ERROR",
+                    message="Gemini authentication failed. Check GEMINI_API_KEY.",
+                ) from exc
+            if "rate" in error_str or "quota" in error_str or "429" in error_str:
+                raise LLMServiceError(
+                    code="LLM_RATE_LIMITED",
+                    message="Gemini rate limit exceeded. Please try again later.",
+                ) from exc
+            raise LLMServiceError(
+                code="LLM_UNAVAILABLE",
+                message=f"Gemini API error: {type(exc).__name__}",
+            ) from exc
+        except TimeoutError as exc:
+            raise LLMServiceError(code="LLM_TIMEOUT", message="Gemini request timed out.") from exc
+        except LLMServiceError:
+            raise
+        except Exception as exc:
+            logger.error("Unexpected Gemini project idea error: %s", type(exc).__name__)
+            raise LLMServiceError(
+                code="LLM_UNAVAILABLE",
+                message="An unexpected error occurred while writing project ideas.",
             ) from exc
 
     def _build_user_prompt(self, description: str, dictionary_context: str) -> str:
