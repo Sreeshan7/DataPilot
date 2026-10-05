@@ -90,3 +90,40 @@ def test_the_pipeline_shows_only_relevant_papers_and_keeps_the_real_matches():
         assert case["relevant_shown"] == case["shown"], case  # nothing off-topic is shown
         assert case["relevant_shown"] >= case["relevant_total"] - 0, case  # and no real match is lost
     assert result["precision"] == 1.0 and result["recall"] == 1.0
+
+
+class TestLiveBenchmarkScoring:
+    """The scoring and report logic of the live benchmark (app/services/research/benchmark.py), tested offline."""
+
+    def response(self):
+        hits = [hit("Traffic volume prediction with weather", "https://arxiv.org/abs/2101.00001", "Traffic and weather."),
+                hit("Interest rate forecasting", "https://arxiv.org/abs/2102.00002", "Monetary policy traffic jam."),
+                hit("Short-term traffic flow forecasting", "https://arxiv.org/abs/2103.00003", "Traffic flow.")]
+        request = ResearchRequest.model_validate({"project": {"description": "predict the traffic", "task": "regression"}, "options": {}})
+        return asyncio.run(ResearchService(settings(), FakeProvider(hits)).discover(request))
+
+    def test_keyword_precision_uses_must_have_and_must_not_words(self):
+        from app.services.research.benchmark import Case, score_case
+
+        result = score_case(Case("predict the traffic", ("traffic",), ("monetary",)), self.response())
+        assert result.shown == 3 and result.keyword_hits == 2 and abs(result.keyword_precision - 2 / 3) < 1e-9 and result.behaved  # the gate let a "traffic jam" abstract through; the proxy catches it
+        strict = score_case(Case("predict the traffic", ("flow",), ()), self.response())
+        assert strict.keyword_hits == 1 and abs(strict.keyword_precision - 1 / 3) < 1e-9
+
+    def test_human_labels_give_the_real_precision_and_the_summary_reports_both(self):
+        from app.services.research.benchmark import Case, human_precision, report_markdown, score_case, summarise
+
+        result = score_case(Case("predict the traffic", ("traffic",)), self.response())
+        keys = [p["key"] for p in result.papers]
+        labels = {"predict the traffic": {keys[0]: True, keys[1]: False}}
+        assert human_precision([result], labels) == 0.5 and human_precision([result], {}) is None
+        summary = summarise([result], labels)
+        assert summary["human_precision"] == 0.5 and summary["pooled_keyword_precision"] == 1.0
+        md = report_markdown([result], summary)
+        assert "Keyword precision is a proxy" in md and keys[0] in md and "50%" in md
+
+    def test_an_ambiguous_question_counts_as_behaving_when_it_asks(self):
+        from app.services.research.benchmark import CaseResult
+
+        assert CaseResult(question="q", status="needs_clarification", expect="clarify").behaved
+        assert not CaseResult(question="q", status="no_results", expect="results").behaved

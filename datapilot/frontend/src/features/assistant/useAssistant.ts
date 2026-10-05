@@ -1,10 +1,11 @@
 import { useCallback, useRef } from "react";
-import { assist, resolveIntent } from "@/api/assist";
+import { resolveIntent, streamAssist } from "@/api/assist";
 import { ApiError } from "@/api/client";
-import { streamResearch, type ProgressEvent } from "@/api/research";
+import { streamResearch } from "@/api/research";
 import type { ConversationStore } from "@/features/conversations/store";
 import type { Attachment, Conversation, LiveStep, RetryInfo, Understood } from "@/features/conversations/types";
 import { journeyLabel } from "@/lib/activity";
+import { applyProgress, type ProgressEvent } from "@/lib/live";
 import { createPacer } from "@/lib/pacer";
 import { uid } from "@/lib/utils";
 import type { IntentResolution, NextAction, ResearchRequest } from "@/types";
@@ -58,6 +59,22 @@ export function useAssistant(store: ConversationStore) {
     });
   }, [store]);
 
+  /** Shows the server's real stages at a readable pace; `phase`/`fraction` keep the upload bar and the steps together. */
+  const liveProgress = useCallback((convId: string, turnId: string) => {
+    const reduced = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    const pacer = createPacer(reduced ? 0 : 420);
+    let steps: LiveStep[] = [];
+    let phase: "uploading" | "processing" = "processing";
+    let fraction: number | undefined;
+    const show = () => store.patch(convId, turnId, { progress: { phase, fraction, steps: steps.length ? steps : undefined } });
+    return {
+      pacer,
+      onProgress: (e: ProgressEvent) => pacer.push(() => { steps = applyProgress(steps, e); show(); }),
+      upload: (f: number) => { phase = "uploading"; fraction = f; show(); },
+      uploaded: () => { phase = "processing"; fraction = undefined; show(); },
+    };
+  }, [store]);
+
   const runAssist = useCallback(async (convId: string, turnId: string, s: Submission, projectGoal: string | undefined) => {
     const controller = new AbortController();
     aborts.current.set(turnId, controller);
@@ -77,21 +94,24 @@ export function useAssistant(store: ConversationStore) {
           progress: { phase: "uploading", fraction: 0 },
         });
       }
-      const data = await assist(
-        { message: s.text || undefined, file: s.file, datasetUrl: s.link, datasetName: s.datasetName, projectGoal },
-        {
-          signal: controller.signal,
-          onUploadProgress: (fraction) => store.patch(convId, turnId, { progress: { phase: "uploading", fraction } }),
-          onUploadComplete: () => store.patch(convId, turnId, { progress: { phase: "processing" } }),
-        },
-      );
-      store.patch(convId, turnId, { status: "done", progress: undefined, result: { kind: "assist", data }, retry });
+      const live = liveProgress(convId, turnId);
+      try {
+        const data = await streamAssist(
+          { message: s.text || undefined, file: s.file, datasetUrl: s.link, datasetName: s.datasetName, projectGoal },
+          { signal: controller.signal, onProgress: live.onProgress, onUploadProgress: live.upload, onUploadComplete: live.uploaded },
+        );
+        await live.pacer.flush(); // every reported stage is shown before the answer replaces it
+        store.patch(convId, turnId, { status: "done", progress: undefined, result: { kind: "assist", data }, retry });
+      } catch (error) {
+        live.pacer.cancel();
+        throw error;
+      }
     } catch (error) {
       finishWithError(convId, turnId, error, retry);
     } finally {
       aborts.current.delete(turnId);
     }
-  }, [store, finishWithError]);
+  }, [store, finishWithError, liveProgress]);
 
   const send = useCallback((s: Submission) => {
     const convId = store.ensure(activeRef.current?.id ?? null);
@@ -110,26 +130,18 @@ export function useAssistant(store: ConversationStore) {
     const controller = new AbortController();
     aborts.current.set(turnId, controller);
     const retry: RetryInfo = { type: "research", request };
-    const reduced = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-    const pacer = createPacer(reduced ? 0 : 420);
-    let steps: LiveStep[] = [];
-    const show = () => store.patch(convId, turnId, { progress: { phase: "processing", steps } });
-    const onProgress = (e: ProgressEvent) => pacer.push(() => {
-      if (e.type === "plan") steps = e.steps.map((s) => ({ ...s, state: "pending" as const }));
-      else steps = steps.map((s) => (s.id === e.id ? { ...s, state: e.state, detail: e.detail ?? undefined } : s));
-      show();
-    });
+    const live = liveProgress(convId, turnId);
     try {
-      const data = await streamResearch(request, { signal: controller.signal, onProgress });
-      await pacer.flush(); // every reported stage is shown before the answer replaces it
+      const data = await streamResearch(request, { signal: controller.signal, onProgress: live.onProgress });
+      await live.pacer.flush(); // every reported stage is shown before the answer replaces it
       store.patch(convId, turnId, { status: "done", progress: undefined, result: { kind: "research", data }, retry });
     } catch (error) {
-      pacer.cancel();
+      live.pacer.cancel();
       finishWithError(convId, turnId, error, retry);
     } finally {
       aborts.current.delete(turnId);
     }
-  }, [store, finishWithError]);
+  }, [store, finishWithError, liveProgress]);
 
   const startResearch = useCallback((payload: ResearchRequest, useAi: boolean, label = "Research this problem") => {
     const convId = store.ensure(activeRef.current?.id ?? null);

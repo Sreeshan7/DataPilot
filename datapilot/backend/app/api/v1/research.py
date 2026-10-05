@@ -96,7 +96,7 @@ async def stream(body: ResearchRequest) -> StreamingResponse:
             response = await service.discover(body, Progress(listener))
             logger.info("[%s] research(stream) status=%s papers=%d", response.request_id, response.status.value,
                         len(response.papers))
-            await queue.put(("result", json.loads(response.model_dump_json())))
+            await queue.put(("result", json.loads(response.model_dump_json(by_alias=True))))
         except Exception as exc:
             logger.error("Unhandled research error: %s", type(exc).__name__)
             await queue.put(("error", {"message": "An internal error occurred."}))

@@ -12,6 +12,7 @@ from typing import Any, Optional
 
 from fastapi import APIRouter, HTTPException, Request
 
+from app.core import progress
 from app.core.logging_config import get_logger
 from app.schemas.dataset import (
     DatasetRecommendationRequest,
@@ -338,6 +339,7 @@ def compose_recommendation_response(
     request_id: str, requirements: Any, result: Any, service: DatasetDiscoveryService
 ) -> DatasetRecommendationResponse:
     """Rank, explain and package a discovery result (shared with the unified workflow)."""
+    progress.start("compat", "Checking compatibility with your project")
     intelligence = build_intelligence_report(result.candidates, requirements)
     confidences, final_recommendation = build_recommendations(result.candidates, intelligence)
     recommendations = [
@@ -357,6 +359,7 @@ def compose_recommendation_response(
         )
     ]
 
+    progress.done("compat", f"{len(recommendations)} datasets assessed")
     return DatasetRecommendationResponse(
         request_id=request_id,
         project_requirements=requirements,

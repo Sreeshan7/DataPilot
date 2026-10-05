@@ -22,6 +22,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import BinaryIO, Optional
 
+from app.core import progress
 from app.core.config import Settings, get_settings
 from app.core.logging_config import get_logger
 from app.schemas.dataset_analysis import (
@@ -177,6 +178,7 @@ class DatasetAnalysisService:
     def _process_file(self, request: AnalysisRequest, display: str) -> tuple[ParsedResult, bool]:
         deadline = Deadline(self._settings.analysis_time_limit_seconds)
         suffix = file_extension(display)  # validated against the allowlist before this point
+        progress.start("read", "Reading your file")
         with store_upload(request.stream, self._settings.analysis_max_upload_bytes, suffix) as stored:  # type: ignore[arg-type]
             table = parse_file(
                 stored.path, display, stored.size_bytes, self._settings, deadline, request.sheet_name
@@ -248,8 +250,10 @@ class DatasetAnalysisService:
                 details={"reason": "; ".join(resolution.evidence)},
             )
 
+        progress.start("lookup", "Looking the dataset up in public registries")
         research = await self._external.research(resolution)
         meta = research.metadata
+        progress.done("lookup", (meta.name if meta else "no registry record found"))
         resolution = research.resolution
         warnings = list(research.warnings)
 

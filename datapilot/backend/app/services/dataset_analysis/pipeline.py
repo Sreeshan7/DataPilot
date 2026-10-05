@@ -26,6 +26,7 @@ from app.services.dataset_analysis.ingestion import ParsedTable
 from app.services.dataset_analysis.profiler import TypedColumn, profile_table
 from app.services.dataset_analysis.quality import analyze_quality
 from app.services.dataset_analysis.safety import Deadline
+from app.core import progress
 from app.services.dataset_analysis.targets import detect_targets
 from app.services.dataset_analysis.tasks import detect_tasks
 
@@ -100,15 +101,24 @@ def analyze_table(
 ) -> ParsedResult:
     """Run every Phase 4 analysis over a parsed file."""
     n_rows = table.info.rows_read
+    progress.done("read", f"{n_rows:,} rows × {len(table.frame.columns)} columns", label="Read your file")
+    progress.start("profile", "Profiling every column")
     columns = profile_table(table, settings, deadline)
+    progress.done("profile", f"{len(columns)} columns typed")
     hint = resolve_target_hint(columns, target_hint)
     if deadline is not None:
         deadline.check("target detection")
+    progress.start("targets", "Looking for what could be predicted")
     targets = detect_targets(columns, n_rows, settings, hint)
+    progress.done("targets", f"{len(targets)} candidate target(s)")
     if deadline is not None:
         deadline.check("quality analysis")
+    progress.start("quality", "Checking data quality")
     quality = analyze_quality(columns, n_rows, table.info, targets, settings, deadline)
+    progress.done("quality", f"{len(quality.findings)} finding(s)")
+    progress.start("tasks", "Working out which tasks fit")
     tasks = detect_tasks(columns, targets, n_rows, settings)
+    progress.done("tasks", f"{len(tasks)} task(s)")
     return ParsedResult(
         table=table, columns=columns, n_rows=n_rows, targets=targets, tasks=tasks,
         quality=quality, schema=schema_from_parsed(columns, table),

@@ -348,3 +348,24 @@ both benchmark scripts (metrics above must not move unexpectedly); for registry/
 - **UI:** idea cards show feasibility and a "Research this project" button; research shows the card (outcome, task,
   dataset check) and clickable readings when a question is ambiguous.
 - Tests: backend 2257 passed, frontend 40.
+
+## Live progress everywhere, open-access full text, live benchmark (2026-10-05)
+- **Streaming:** `POST /assist/stream` (same inputs and final body as `/assist`, SSE). Stages are reported from where the
+  work happens through `app/core/progress.py` (a context variable, so worker threads report to the right request;
+  a no-op without a sink). Stage events carry ids, fixed labels and counts only (tested: no user text/file content).
+  Client: `postFormSse` (XHR, so real upload progress), `lib/live.ts` reducer, shared pacer. A 2 KB padding comment
+  flushes the browsers' first-KB buffer. Stream bodies use `by_alias=True` so they match the plain endpoints.
+- **Bug found by the streaming work:** four Gemini calls in `llm_service.py` ran synchronously ON the event loop, freezing
+  the whole server for the duration of each call. They now run in worker threads.
+- **Full text (`research/fulltext.py`):** for the top papers with an open-access PDF link (OpenAlex, Semantic Scholar,
+  arXiv), the first 14 pages are read (pypdf) and methods/figures are matched in the paper's own text (evidence
+  `paper_text`; `retrieval_status=full_text`). Safety: https only, named public host that resolves to public addresses
+  only (re-checked on each of <=3 redirects), 4 MB cap, must start with %PDF, reference list cut, text capped.
+  Failure leaves the paper at snippet level.
+- **Live benchmark:** `python -m app.services.research.benchmark [--no-ai] [--ai-judge] [--labels f.json]` writes
+  `evaluation/RESEARCH_BENCHMARK.md` and `research_benchmark_results.json`. Keyword precision is a PROXY; human precision
+  needs a labels file; AI-judged precision is an opinion. First run found the AI over-asking clarifying questions (6 of 15
+  clear questions); fixed (prompt + only for bare one-word-subject questions with no conditions/dataset/target).
+  Second run: 15/15 answered, keyword precision 100% (8 papers each), 13 papers read in full text, 49 with citations,
+  26 Gemini calls. The AI-judge call failed that run (a Gemini server error), so there is no AI-judged figure for it.
+- Tests: backend 2278 passed, frontend 43.

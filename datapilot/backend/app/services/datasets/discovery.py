@@ -30,6 +30,7 @@ from dataclasses import dataclass, field
 from typing import Optional, Sequence
 
 from app.core.config import Settings, get_settings
+from app.core import progress
 from app.core.logging_config import get_logger
 from app.schemas.dataset import (
     DatasetCandidate,
@@ -158,11 +159,16 @@ class DatasetDiscoveryService:
         """
         rid = request_id or str(uuid.uuid4())
         analyzer = self._project_analyzer or ProjectAnalyzer(self._settings)
+        progress.start("requirements", "Extracting your project requirements")
         analysis = await analyzer.analyze(
             ProjectAnalysisRequest(description=description),
             request_id=rid,
         )
         requirements = analysis.data
+        understanding = requirements.project_understanding
+        bits = [b for b in (getattr(getattr(understanding, "domain", None), "value", None),
+                            (understanding.ml_tasks[0].task if getattr(understanding, "ml_tasks", None) else None)) if b]
+        progress.done("requirements", " · ".join(str(b) for b in bits) or None)
         result = await self.discover(requirements, limit=limit, request_id=rid)
         return requirements, result
 
@@ -218,27 +224,36 @@ class DatasetDiscoveryService:
             collected.extend(candidates)
 
         raw_count = len(collected)
+        progress.start("merge", "Removing duplicates across sources")
 
         # A fresh deduplicator per run: the index holds candidate references, so
         # reusing one across requests would leak results between callers.
         deduplicator = DatasetDeduplicator()
         deduplicated = deduplicator.deduplicate(collected)
 
+        progress.done("merge", f"{len(deduplicated)} distinct datasets")
         confirmed = 0
         if requirements is not None:
+            progress.start("confirm", "Checking AI suggestions against the registries")
             deduplicated, confirmed = await self._confirm_suggestions(
                 deduplicated, deduplicator, verified_sources, rid
             )
 
+        if requirements is not None:
+            progress.done("confirm", f"{confirmed} confirmed" if confirmed else "none needed confirming")
+        progress.start("rank", "Comparing candidates with your project")
         ranked = (
             self._ranking.rank(deduplicated, requirements)
             if requirements is not None
             else list(deduplicated)
         )
 
+        progress.done("rank", f"{len(ranked)} ranked")
         enrichment = _EnrichmentStats()
         if requirements is not None:
+            progress.start("enrich", "Reading details of the best matches")
             ranked, enrichment = await self._enrich_top(ranked, requirements, rid)
+            progress.done("enrich", f"{enrichment.succeeded} of {enrichment.attempted} read" if enrichment.attempted else "already detailed")
         final = ranked[:limit]
 
         duration_ms = round((time.monotonic() - start) * 1000, 2)
@@ -467,6 +482,7 @@ class DatasetDiscoveryService:
             )
 
         start = time.monotonic()
+        progress.start(f"source-{source.name}", f"Searching {source.name}")
         try:
             candidates = await source.search(request)
         except DatasetSourceError as exc:
@@ -496,6 +512,10 @@ class DatasetDiscoveryService:
                 candidate_count=len(candidates),
             )
         outcome.duration_ms = round((time.monotonic() - start) * 1000, 2)
+        if outcome.status is SourceStatus.OK:
+            progress.done(f"source-{source.name}", f"{len(candidates)} candidates")
+        else:
+            progress.skip(f"source-{source.name}", "unavailable right now")
         return outcome, candidates if outcome.status is SourceStatus.OK else []
 
 

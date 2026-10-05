@@ -153,6 +153,10 @@ class Settings(BaseSettings):
     research_enabled: bool = True
     research_gemini_enabled: bool = True
     research_ai_assist_enabled: bool = True
+    research_fulltext_enabled: bool = True        # read open-access PDFs of the top papers
+    research_fulltext_papers: int = 4
+    research_fulltext_max_bytes: int = 4_000_000
+    research_fulltext_timeout_seconds: float = 15.0
     research_search_url: str = "https://html.duckduckgo.com/html/"
     research_timeout_seconds: float = 12.0
     research_max_queries: int = 5

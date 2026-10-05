@@ -75,7 +75,8 @@ function LiveSteps({ steps }: { steps: LiveStep[] }) {
  */
 export function ActivityPending({ workflow, understood, progress, fileName, fileSize, onCancel }: PendingProps) {
   const uploading = progress?.phase === "uploading";
-  const live = progress?.steps && progress.steps.length > 0 ? progress.steps : undefined;
+  const shown = (progress?.steps ?? []).filter((s) => !(s.id === "route" && understood)); // the router already told us above
+  const live = shown.length > 0 ? shown : undefined;
   const seconds = useElapsed();
   const pct = Math.round((progress?.fraction ?? 0) * 100);
   const title = uploading ? `Uploading ${fileName ?? "your file"}` : WORKING_TITLE[workflow];
@@ -95,9 +96,7 @@ export function ActivityPending({ workflow, understood, progress, fileName, file
         </div>
       </div>
 
-      {live && <LiveSteps steps={live} />}
-
-      <ul className={cn("mt-3 space-y-2 text-[13.5px]", live && "hidden")}>
+      <ul className="mt-3 space-y-2 text-[13.5px]">
         {understood && (
           <li className="flex items-start gap-2.5 text-foreground">
             <Check className="mt-0.5 size-4 shrink-0 text-success" aria-hidden />
@@ -117,13 +116,14 @@ export function ActivityPending({ workflow, understood, progress, fileName, file
             </span>
           </li>
         )}
-        {!uploading && EXPECTED_STEPS[workflow].map((label, i) => (
+        {!uploading && !live && EXPECTED_STEPS[workflow].map((label, i) => (
           <li key={label} className="flex items-start gap-2.5 text-muted-foreground" style={{ animationDelay: `${i * 40}ms` }}>
             <Circle className="mt-0.5 size-4 shrink-0 text-border" aria-hidden />
             <span>{label}</span>
           </li>
         ))}
       </ul>
+      {!uploading && live && <LiveSteps steps={live} />}
       {!uploading && (
         <p className="mt-4 text-xs leading-5 text-subtle">
           {live

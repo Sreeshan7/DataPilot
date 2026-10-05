@@ -14,6 +14,7 @@ from __future__ import annotations
 import asyncio
 from typing import Optional
 
+from app.core import progress
 from app.core.config import Settings, get_settings
 from app.core.logging_config import get_logger
 from app.schemas.dataset_analysis import AnalysisMode
@@ -62,6 +63,7 @@ class ProjectIntelligenceService:
 
         # ---- feature intelligence: rows only, never for a registry-only dataset ----------
         if analysis.mode is AnalysisMode.FILE_PARSED and outcome.parsed is not None:
+            progress.start("signal", "Measuring which columns carry signal")
             deadline = Deadline(self._settings.analysis_time_limit_seconds)
             try:
                 intel = await asyncio.to_thread(
@@ -77,9 +79,12 @@ class ProjectIntelligenceService:
         else:
             intel = features.external_feature_intelligence(analysis, target)
 
+        progress.done("signal", "measured" if intel.available else "not available for this data")
+        progress.start("ideas", "Drafting project ideas from your columns")
         models = recommend_models(understanding, shape)
         ideas = validate_ideas(generate_ideas(analysis, understanding, intel, shape), shape.names)[:MAX_IDEAS]
 
+        progress.done("ideas", f"{len(ideas)} ideas")
         writer = self._idea_writer() if use_ai and self._settings.analysis_gemini_enabled else None
         ideas, gemini, gemini_warnings = await enhance_ideas(
             ideas, shape, goal, writer, self._settings, requested=use_ai)

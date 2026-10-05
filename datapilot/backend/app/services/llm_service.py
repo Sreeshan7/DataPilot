@@ -131,7 +131,8 @@ class LLMService:
 
         try:
             start = time.monotonic()
-            response = self._client.models.generate_content(
+            response = await asyncio.to_thread(
+                self._client.models.generate_content,
                 model=self._settings.gemini_model,
                 contents=user_prompt,
                 config=types.GenerateContentConfig(
@@ -226,7 +227,8 @@ class LLMService:
 
         try:
             start = time.monotonic()
-            response = self._client.models.generate_content(
+            response = await asyncio.to_thread(
+                self._client.models.generate_content,
                 model=self._settings.gemini_model,
                 contents=user_prompt,
                 config=types.GenerateContentConfig(
@@ -362,7 +364,8 @@ class LLMService:
         if not self._client:
             raise LLMServiceError(code="LLM_UNAVAILABLE", message="Gemini client is not configured. Check GEMINI_API_KEY.")
         try:
-            response = self._client.models.generate_content(
+            response = await asyncio.to_thread(
+                self._client.models.generate_content,
                 model=self._settings.gemini_model,
                 contents=user_prompt,
                 config=types.GenerateContentConfig(
@@ -407,7 +410,8 @@ class LLMService:
                 message="Gemini client is not configured. Check GEMINI_API_KEY.",
             )
         try:
-            response = self._client.models.generate_content(
+            response = await asyncio.to_thread(
+                self._client.models.generate_content,
                 model=self._settings.gemini_model,
                 contents=user_prompt,
                 config=types.GenerateContentConfig(

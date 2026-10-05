@@ -90,6 +90,7 @@ class _Entry:
     year: Optional[int] = None
     venue: Optional[str] = None
     citations: Optional[int] = None
+    oa_url: Optional[str] = None
     structured: bool = False  # some provider returned real metadata for it
 
 
@@ -140,6 +141,7 @@ def normalise(hits: list[SearchHit]) -> tuple[list[Paper], int, int]:
         if hit.citations is not None:
             entry.citations = max(entry.citations or 0, hit.citations)
         entry.structured = entry.structured or hit.academic
+        entry.oa_url = entry.oa_url or hit.oa_url
         if hit.academic and entry.url.startswith("https://doi.org") is False and hit.url.startswith("https://doi.org"):
             entry.url = hit.url  # prefer the stable DOI link
         for k in keys:
@@ -168,6 +170,7 @@ def normalise(hits: list[SearchHit]) -> tuple[list[Paper], int, int]:
             id=hashlib.sha1(key.encode()).hexdigest()[:12], title=entry.title, url=entry.url, source=host,
             venue=entry.venue or venue_for(host), authors=list(entry.authors) if entry.authors else None,
             publication_year=year, year_evidence=year_evidence, doi=entry.doi, citation_count=entry.citations,
+            open_access_url=entry.oa_url,
             abstract_snippet=snippet, matched_queries=entry.queries,
             retrieval_status="snippet_only" if snippet else "title_only",
             evidence=[EvidenceKind.WEB_VERIFIED] + ([EvidenceKind.SOURCE_METADATA] if entry.structured or entry.arxiv_year or entry.doi else []),

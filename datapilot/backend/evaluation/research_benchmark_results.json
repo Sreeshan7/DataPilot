@@ -1,0 +1,1908 @@
+{
+  "summary": {
+    "questions": 15,
+    "behaved_correctly": 15,
+    "answered": 15,
+    "mean_keyword_precision": 1.0,
+    "pooled_keyword_precision": 1.0,
+    "mean_papers_shown": 8.0,
+    "papers_with_full_text": 13,
+    "papers_with_citation_counts": 49,
+    "gemini_calls": 26,
+    "mean_seconds": 58.7,
+    "human_precision": null,
+    "ai_judged_precision": null
+  },
+  "cases": [
+    {
+      "question": "I want to research the best methods for predicting the trafic during specific time and weather conditions",
+      "status": "success",
+      "expect": "results",
+      "shown": 8,
+      "keyword_hits": 8,
+      "interpretation": {
+        "problem": "traffic flow prediction",
+        "core_terms": [
+          "traffic"
+        ],
+        "context_terms": [
+          "weather conditions",
+          "time series"
+        ],
+        "corrections": {
+          "trafic": "traffic"
+        },
+        "ai_assisted": true,
+        "outcome": "traffic volume",
+        "task": "regression",
+        "features": [],
+        "dataset_check": null,
+        "options": []
+      },
+      "seconds": 41.3,
+      "gemini_calls": 2,
+      "full_text_papers": 1,
+      "with_citations": 4,
+      "papers": [
+        {
+          "key": "doi:10.54254/2755-2721/2025.21273",
+          "title": "Analysis Model Integrating Traffic Volume and Temperature for Traffic Flow Prediction",
+          "year": 2025,
+          "url": "https://doi.org/10.54254/2755-2721/2025.21273",
+          "relevance": 71.5,
+          "ai_relevance": 3,
+          "type": "method",
+          "citations": 0,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "doi:10.1155/2021/6662959",
+          "title": "Short‐Term Traffic Flow Prediction with Weather Conditions: Based on Deep Learning Algorithms and Data Fusion",
+          "year": 2021,
+          "url": "https://doi.org/10.1155/2021/6662959",
+          "relevance": 65.6,
+          "ai_relevance": 3,
+          "type": "method",
+          "citations": 74,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "doi:10.32604/cmc.2022.022692",
+          "title": "Modeling of Artificial Intelligence Based Traffic Flow Prediction with Weather Conditions",
+          "year": 2021,
+          "url": "https://doi.org/10.32604/cmc.2022.022692",
+          "relevance": 64.5,
+          "ai_relevance": 3,
+          "type": "method",
+          "citations": 15,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "doi:10.22214/ijraset.2026.82225",
+          "title": "Machine Learning for Traffic Flow Prediction and Optimization",
+          "year": 2026,
+          "url": "https://doi.org/10.22214/ijraset.2026.82225",
+          "relevance": 80.0,
+          "ai_relevance": 2,
+          "type": "method",
+          "citations": 0,
+          "full_text": true,
+          "keyword_match": true
+        },
+        {
+          "key": "doi:10.3390/app15041779",
+          "title": "Research on Support Vector Regression Short-Time Traffic Flow Prediction Model for Secondary Roads Based on Associated Road Analysis",
+          "year": 2025,
+          "url": "https://doi.org/10.3390/app15041779",
+          "relevance": 75.6,
+          "ai_relevance": 2,
+          "type": "method",
+          "citations": 8,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "doi:10.1049/iet-its.2013.0191",
+          "title": "Improving short‐term traffic forecasts: to combine models or not to combine?",
+          "year": 2014,
+          "url": "https://doi.org/10.1049/iet-its.2013.0191",
+          "relevance": 72.7,
+          "ai_relevance": 2,
+          "type": "method",
+          "citations": 40,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "title:from gpu to microcontroller online ridge regression for edge deployable traffic prediction",
+          "title": "From GPU to Microcontroller: Online Ridge Regression for Edge-Deployable Traffic Prediction",
+          "year": 2026,
+          "url": "https://arxiv.org/abs/2606.17613v1",
+          "relevance": 72.5,
+          "ai_relevance": 2,
+          "type": "survey",
+          "citations": null,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "doi:10.54097/tv6vfy08",
+          "title": "A Study on Short-Term Traffic Flow Prediction Based on Random Forest Regression",
+          "year": 2024,
+          "url": "https://doi.org/10.54097/tv6vfy08",
+          "relevance": 70.5,
+          "ai_relevance": 2,
+          "type": "method",
+          "citations": 0,
+          "full_text": false,
+          "keyword_match": true
+        }
+      ]
+    },
+    {
+      "question": "predict diabetis risk from patient data",
+      "status": "success",
+      "expect": "results",
+      "shown": 8,
+      "keyword_hits": 8,
+      "interpretation": {
+        "problem": "diabetes risk prediction",
+        "core_terms": [
+          "diabetes",
+          "risk"
+        ],
+        "context_terms": [
+          "patient data",
+          "clinical records"
+        ],
+        "corrections": {
+          "diabetis": "diabetes"
+        },
+        "ai_assisted": true,
+        "outcome": "diabetes risk",
+        "task": "classification",
+        "features": [],
+        "dataset_check": null,
+        "options": []
+      },
+      "seconds": 28.9,
+      "gemini_calls": 2,
+      "full_text_papers": 3,
+      "with_citations": 3,
+      "papers": [
+        {
+          "key": "doi:10.4038/jpgim.v13i1.8599",
+          "title": "The effect of sparse data problem on classification algorithms in machine learning: A case study on early-stage diabetes risk prediction",
+          "year": 2026,
+          "url": "https://doi.org/10.4038/jpgim.v13i1.8599",
+          "relevance": 80.0,
+          "ai_relevance": 3,
+          "type": "applied",
+          "citations": 0,
+          "full_text": true,
+          "keyword_match": true
+        },
+        {
+          "key": "doi:10.11648/j.ijdsa.20261203.12",
+          "title": "Random Forest Classification for Type 2 Diabetes Risk Prediction in Kenya: Evidence from the 2022 Kenya Demographic and Health Survey",
+          "year": 2026,
+          "url": "https://doi.org/10.11648/j.ijdsa.20261203.12",
+          "relevance": 75.0,
+          "ai_relevance": 3,
+          "type": "survey",
+          "citations": 0,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "doi:10.5281/zenodo.22040105",
+          "title": "A Multimodal Artificial Intelligence Framework for Diabetes Risk Prediction and Diabetic Retinopathy Classification using Clinical and Retinal Data",
+          "year": 2026,
+          "url": "https://doi.org/10.5281/zenodo.22040105",
+          "relevance": 75.0,
+          "ai_relevance": 3,
+          "type": "method",
+          "citations": 0,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "doi:10.54254/2755-2721/2026.tj31360",
+          "title": "Interaction-Enhanced and Explainable Machine Learning for Diabetes Risk Prediction",
+          "year": 2026,
+          "url": "https://doi.org/10.54254/2755-2721/2026.tj31360",
+          "relevance": 75.0,
+          "ai_relevance": 3,
+          "type": "method",
+          "citations": 0,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "doi:10.62051/nzr6tw29",
+          "title": "Diabetes Risk Prediction Model Using Machine Learning",
+          "year": 2025,
+          "url": "https://doi.org/10.62051/nzr6tw29",
+          "relevance": 74.8,
+          "ai_relevance": 3,
+          "type": "method",
+          "citations": 2,
+          "full_text": true,
+          "keyword_match": true
+        },
+        {
+          "key": "doi:10.3390/healthcare10102070",
+          "title": "An Integrated Classification and Association Rule Technique for Early-Stage Diabetes Risk Prediction",
+          "year": 2022,
+          "url": "https://doi.org/10.3390/healthcare10102070",
+          "relevance": 73.1,
+          "ai_relevance": 3,
+          "type": "method",
+          "citations": 18,
+          "full_text": true,
+          "keyword_match": true
+        },
+        {
+          "key": "doi:10.18196/st.v27i1.21008",
+          "title": "Naive Bayes for Diabetes Prediction: Developing a Classification Model for Risk Identification in Specific Populations",
+          "year": 2024,
+          "url": "https://doi.org/10.18196/st.v27i1.21008",
+          "relevance": 71.9,
+          "ai_relevance": 3,
+          "type": "method",
+          "citations": 6,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "title:an improved ensemble based machine learning model with feature optimization for early diabetes prediction",
+          "title": "An Improved Ensemble-Based Machine Learning Model with Feature Optimization for Early Diabetes Prediction",
+          "year": 2025,
+          "url": "https://arxiv.org/abs/2512.02023v2",
+          "relevance": 71.5,
+          "ai_relevance": 3,
+          "type": "survey",
+          "citations": null,
+          "full_text": false,
+          "keyword_match": true
+        }
+      ]
+    },
+    {
+      "question": "customer churn prediction for a telecom company",
+      "status": "success",
+      "expect": "results",
+      "shown": 8,
+      "keyword_hits": 8,
+      "interpretation": {
+        "problem": "customer churn telecom",
+        "core_terms": [
+          "customer",
+          "churn",
+          "telecom"
+        ],
+        "context_terms": [],
+        "corrections": {},
+        "ai_assisted": false,
+        "outcome": null,
+        "task": null,
+        "features": [],
+        "dataset_check": null,
+        "options": []
+      },
+      "seconds": 54.7,
+      "gemini_calls": 1,
+      "full_text_papers": 0,
+      "with_citations": 5,
+      "papers": [
+        {
+          "key": "doi:10.1016/j.rico.2023.100342",
+          "title": "Customer churn prediction in telecom sector using machine learning techniques",
+          "year": 2023,
+          "url": "https://doi.org/10.1016/j.rico.2023.100342",
+          "relevance": 70.4,
+          "ai_relevance": 3,
+          "type": "method",
+          "citations": 108,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "doi:10.47839/ijc.24.1.3873",
+          "title": "Customer Churn Prediction: A Machine Learning Approach with Data Balancing for Telecom Industry",
+          "year": 2025,
+          "url": "https://doi.org/10.47839/ijc.24.1.3873",
+          "relevance": 69.5,
+          "ai_relevance": 3,
+          "type": "method",
+          "citations": 1,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "doi:10.3126/jkbc.v7i1.88366",
+          "title": "Ensemble of Machine Learning Algorithm for Customer Churn in Telecom Industry",
+          "year": 2025,
+          "url": "https://doi.org/10.3126/jkbc.v7i1.88366",
+          "relevance": 69.0,
+          "ai_relevance": 3,
+          "type": "method",
+          "citations": 0,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "doi:10.54097/9r12cm81",
+          "title": "Machine Learning-Based Prediction of Telecom Customer Churn: Comparative Model Analysis",
+          "year": 2025,
+          "url": "https://doi.org/10.54097/9r12cm81",
+          "relevance": 69.0,
+          "ai_relevance": 3,
+          "type": "method",
+          "citations": 0,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "doi:10.7717/peerj-cs.854",
+          "title": "An ensemble based approach using a combination of clustering and classification algorithms to enhance customer churn prediction in telecom industry",
+          "year": 2022,
+          "url": "https://doi.org/10.7717/peerj-cs.854",
+          "relevance": 68.8,
+          "ai_relevance": 3,
+          "type": "method",
+          "citations": 46,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "doi:10.54097/hset.v39i.6711",
+          "title": "Data Visualization and Prediction for Telecom Customer Churn",
+          "year": 2023,
+          "url": "https://doi.org/10.54097/hset.v39i.6711",
+          "relevance": 68.2,
+          "ai_relevance": 3,
+          "type": "method",
+          "citations": 4,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "doi:10.1109/access.2019.2914999",
+          "title": "A Churn Prediction Model Using Random Forest: Analysis of Machine Learning Techniques for Churn Prediction and Factor Identification in Telecom Sector",
+          "year": 2019,
+          "url": "https://doi.org/10.1109/access.2019.2914999",
+          "relevance": 64.0,
+          "ai_relevance": 3,
+          "type": "method",
+          "citations": 402,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "title:hybrid ml classification approach for customer churn prediction in telecom industry",
+          "title": "Hybrid ML Classification Approach for Customer Churn Prediction in Telecom Industry",
+          "year": 2022,
+          "url": "https://www.philstat.org/index.php/MSEA/article/view/1888",
+          "relevance": 63.5,
+          "ai_relevance": 3,
+          "type": "method",
+          "citations": 0,
+          "full_text": false,
+          "keyword_match": true
+        }
+      ]
+    },
+    {
+      "question": "student academic performance prediction using attendance and marks",
+      "status": "success",
+      "expect": "results",
+      "shown": 8,
+      "keyword_hits": 8,
+      "interpretation": {
+        "problem": "student academic performance",
+        "core_terms": [
+          "student",
+          "academic performance"
+        ],
+        "context_terms": [
+          "attendance",
+          "exam marks"
+        ],
+        "corrections": {},
+        "ai_assisted": true,
+        "outcome": "academic performance",
+        "task": "classification",
+        "features": [],
+        "dataset_check": null,
+        "options": []
+      },
+      "seconds": 50.7,
+      "gemini_calls": 1,
+      "full_text_papers": 0,
+      "with_citations": 2,
+      "papers": [
+        {
+          "key": "doi:10.38101/sisfotek.v16i2.17012",
+          "title": "A Random Forest-Based Early Warning System for Early Identification and Classification of Student Academic Risk Using Academic Performance Indicators",
+          "year": 2026,
+          "url": "https://doi.org/10.38101/sisfotek.v16i2.17012",
+          "relevance": 73.3,
+          "ai_relevance": null,
+          "type": "method",
+          "citations": 0,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "title:impact causation and prediction of socio academic and economic factors in exam centric student evaluation measures using machine learning and causal analysis",
+          "title": "Impact, Causation and Prediction of Socio-Academic and Economic Factors in Exam-centric Student Evaluation Measures using Machine Learning and Causal Analysis",
+          "year": 2025,
+          "url": "https://arxiv.org/abs/2506.12030v1",
+          "relevance": 70.7,
+          "ai_relevance": null,
+          "type": "method",
+          "citations": null,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "doi:10.17762/ijritcc.v14i1.11967",
+          "title": "Survival Study on Student Academic Performance Classification based on Mental Health",
+          "year": 2026,
+          "url": "https://doi.org/10.17762/ijritcc.v14i1.11967",
+          "relevance": 70.0,
+          "ai_relevance": null,
+          "type": "method",
+          "citations": 0,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "doi:10.51271/jceees-0027",
+          "title": "Comparison of machine learning classification models for predicting student academic performance",
+          "year": 2025,
+          "url": "https://doi.org/10.51271/jceees-0027",
+          "relevance": 69.0,
+          "ai_relevance": null,
+          "type": "survey",
+          "citations": 0,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "title:using naive bayes algorithm to students bachelor academic performances analysis",
+          "title": "Using Naive Bayes Algorithm to Students' bachelor Academic Performances Analysis",
+          "year": 2018,
+          "url": "https://arxiv.org/abs/1802.04845v1",
+          "relevance": 68.7,
+          "ai_relevance": null,
+          "type": "applied",
+          "citations": null,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "doi:10.54254/2755-2721/2024.17909",
+          "title": "Analyzing Student Online Learning Behaviors and Academic Performance in Science Education Using Machine Learning Techniques",
+          "year": 2024,
+          "url": "https://doi.org/10.54254/2755-2721/2024.17909",
+          "relevance": 68.5,
+          "ai_relevance": null,
+          "type": "method",
+          "citations": 1,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "title:explainable ai and machine learning for exam based student evaluation causal and predictive analysis of socio academic and economic factors",
+          "title": "Explainable AI and Machine Learning for Exam-based Student Evaluation: Causal and Predictive Analysis of Socio-academic and Economic Factors",
+          "year": 2025,
+          "url": "https://arxiv.org/abs/2508.00785v1",
+          "relevance": 67.3,
+          "ai_relevance": null,
+          "type": "survey",
+          "citations": null,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "doi:10.22214/ijraset.2021.38786",
+          "title": "Student Academic Performance Prediction under Various Machine Learning Classification Algorithms",
+          "year": 2021,
+          "url": "https://doi.org/10.22214/ijraset.2021.38786",
+          "relevance": 66.2,
+          "ai_relevance": null,
+          "type": "method",
+          "citations": 4,
+          "full_text": false,
+          "keyword_match": true
+        }
+      ]
+    },
+    {
+      "question": "house price prediction",
+      "status": "success",
+      "expect": "results",
+      "shown": 8,
+      "keyword_hits": 8,
+      "interpretation": {
+        "problem": "housing price",
+        "core_terms": [
+          "housing",
+          "price"
+        ],
+        "context_terms": [],
+        "corrections": {},
+        "ai_assisted": true,
+        "outcome": "house price",
+        "task": "regression",
+        "features": [],
+        "dataset_check": null,
+        "options": []
+      },
+      "seconds": 63.1,
+      "gemini_calls": 2,
+      "full_text_papers": 0,
+      "with_citations": 1,
+      "papers": [
+        {
+          "key": "doi:10.54254/2753-8818/2026.36726",
+          "title": "Housing Price Modelling with Multiple Linear Regression and Regularisation",
+          "year": 2026,
+          "url": "https://doi.org/10.54254/2753-8818/2026.36726",
+          "relevance": 75.0,
+          "ai_relevance": 3,
+          "type": "applied",
+          "citations": 0,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "doi:10.54254/2753-8818/2025.23005",
+          "title": "Predicting Housing Price Using Regression Analysis: A Study Based on California Housing Price",
+          "year": 2025,
+          "url": "https://doi.org/10.54254/2753-8818/2025.23005",
+          "relevance": 74.0,
+          "ai_relevance": 3,
+          "type": "method",
+          "citations": 0,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "doi:10.54097/5811g474",
+          "title": "Research on Housing Price Prediction Based on Machine Learning",
+          "year": 2024,
+          "url": "https://doi.org/10.54097/5811g474",
+          "relevance": 73.0,
+          "ai_relevance": 3,
+          "type": "method",
+          "citations": 0,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "doi:10.54691/bcpbm.v38i.4014",
+          "title": "Price Prediction of Ames Housing Through Advanced Regression Techniques",
+          "year": 2023,
+          "url": "https://doi.org/10.54691/bcpbm.v38i.4014",
+          "relevance": 72.0,
+          "ai_relevance": 3,
+          "type": "method",
+          "citations": 0,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "title:predicting housing prices and analyzing real estate market in the chicago suburbs using machine learning",
+          "title": "Predicting housing prices and analyzing real estate market in the Chicago suburbs using Machine Learning",
+          "year": 2022,
+          "url": "https://arxiv.org/abs/2210.06261v1",
+          "relevance": 71.0,
+          "ai_relevance": 3,
+          "type": "method",
+          "citations": null,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "doi:10.54691/bcpbm.v32i.2985",
+          "title": "Prediction of Housing Price in Beijing Based on Linear Regression Model",
+          "year": 2022,
+          "url": "https://doi.org/10.54691/bcpbm.v32i.2985",
+          "relevance": 71.0,
+          "ai_relevance": 3,
+          "type": "method",
+          "citations": 0,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "doi:10.1016/j.mlwa.2025.100707",
+          "title": "Explaining drivers of housing prices with nonlinear hedonic regressions",
+          "year": 2025,
+          "url": "https://doi.org/10.1016/j.mlwa.2025.100707",
+          "relevance": 70.3,
+          "ai_relevance": 3,
+          "type": "method",
+          "citations": 5,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "title:housing price prediction model selection based on lorenz and concentration curves empirical evidence from tehran housing market",
+          "title": "Housing Price Prediction Model Selection Based on Lorenz and Concentration Curves: Empirical Evidence from Tehran Housing Market",
+          "year": 2021,
+          "url": "https://arxiv.org/abs/2112.06192v1",
+          "relevance": 70.0,
+          "ai_relevance": 3,
+          "type": "method",
+          "citations": null,
+          "full_text": false,
+          "keyword_match": true
+        }
+      ]
+    },
+    {
+      "question": "credit card fraud detection",
+      "status": "success",
+      "expect": "results",
+      "shown": 8,
+      "keyword_hits": 8,
+      "interpretation": {
+        "problem": "credit card fraud detection",
+        "core_terms": [
+          "fraud",
+          "credit card"
+        ],
+        "context_terms": [
+          "financial services",
+          "electronic payments"
+        ],
+        "corrections": {},
+        "ai_assisted": true,
+        "outcome": "fraudulent transaction",
+        "task": "classification",
+        "features": [],
+        "dataset_check": null,
+        "options": []
+      },
+      "seconds": 89.3,
+      "gemini_calls": 2,
+      "full_text_papers": 2,
+      "with_citations": 5,
+      "papers": [
+        {
+          "key": "doi:10.7717/peerj-cs.3748",
+          "title": "A novel hybrid machine learning model for credit card fraud detection using anomaly detection and optimised classification",
+          "year": 2026,
+          "url": "https://doi.org/10.7717/peerj-cs.3748",
+          "relevance": 77.5,
+          "ai_relevance": 3,
+          "type": "applied",
+          "citations": 0,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "doi:10.59018/0925166",
+          "title": "Credit card fraud detection using Gaussian Mixture Model: A probabilistic approach for enhanced classification",
+          "year": 2025,
+          "url": "https://doi.org/10.59018/0925166",
+          "relevance": 76.5,
+          "ai_relevance": 3,
+          "type": "method",
+          "citations": 0,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "doi:10.22214/ijraset.2023.53990",
+          "title": "Credit Card Fraud Detection Using Random Forest Classification",
+          "year": 2023,
+          "url": "https://doi.org/10.22214/ijraset.2023.53990",
+          "relevance": 72.8,
+          "ai_relevance": 3,
+          "type": "applied",
+          "citations": 2,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "doi:10.17577/ijertv8is090031",
+          "title": "Credit Card Fraud Detection using Machine Learning and Data Science",
+          "year": 2019,
+          "url": "https://doi.org/10.17577/ijertv8is090031",
+          "relevance": 71.7,
+          "ai_relevance": 3,
+          "type": "applied",
+          "citations": 167,
+          "full_text": true,
+          "keyword_match": true
+        },
+        {
+          "key": "doi:10.34028/iajit/18/2/8",
+          "title": "Support Vector Machine with Information Gain Based Classification for Credit Card Fraud Detection System",
+          "year": 2021,
+          "url": "https://doi.org/10.34028/iajit/18/2/8",
+          "relevance": 71.6,
+          "ai_relevance": 3,
+          "type": "method",
+          "citations": 8,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "doi:10.1109/access.2020.2971354",
+          "title": "An Intelligent Approach to Credit Card Fraud Detection Using an Optimized Light Gradient Boosting Machine",
+          "year": 2020,
+          "url": "https://doi.org/10.1109/access.2020.2971354",
+          "relevance": 70.9,
+          "ai_relevance": 3,
+          "type": "method",
+          "citations": 443,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "title:towards automated feature engineering for credit card fraud detection using multi perspective hmms",
+          "title": "Towards automated feature engineering for credit card fraud detection using multi-perspective HMMs",
+          "year": 2019,
+          "url": "https://arxiv.org/abs/1909.01185v1",
+          "relevance": 70.5,
+          "ai_relevance": 3,
+          "type": "method",
+          "citations": null,
+          "full_text": true,
+          "keyword_match": true
+        },
+        {
+          "key": "doi:10.1109/access.2022.3148298",
+          "title": "A Neural Network Ensemble With Feature Engineering for Improved Credit Card Fraud Detection",
+          "year": 2022,
+          "url": "https://doi.org/10.1109/access.2022.3148298",
+          "relevance": 70.2,
+          "ai_relevance": 3,
+          "type": "method",
+          "citations": 333,
+          "full_text": false,
+          "keyword_match": true
+        }
+      ]
+    },
+    {
+      "question": "electricity demand forecasting",
+      "status": "success",
+      "expect": "results",
+      "shown": 8,
+      "keyword_hits": 8,
+      "interpretation": {
+        "problem": "electricity demand forecasting",
+        "core_terms": [
+          "electricity",
+          "demand"
+        ],
+        "context_terms": [],
+        "corrections": {},
+        "ai_assisted": true,
+        "outcome": "energy load",
+        "task": "forecasting",
+        "features": [],
+        "dataset_check": null,
+        "options": []
+      },
+      "seconds": 61.1,
+      "gemini_calls": 2,
+      "full_text_papers": 0,
+      "with_citations": 4,
+      "papers": [
+        {
+          "key": "doi:10.3390/en18020278",
+          "title": "LSTM vs. Prophet: Achieving Superior Accuracy in Dynamic Electricity Demand Forecasting",
+          "year": 2025,
+          "url": "https://doi.org/10.3390/en18020278",
+          "relevance": 71.5,
+          "ai_relevance": 3,
+          "type": "method",
+          "citations": 30,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "doi:10.1038/s41598-026-45123-x",
+          "title": "Machine learning long-term electricity demand forecasting system for strategic energy investments",
+          "year": 2026,
+          "url": "https://doi.org/10.1038/s41598-026-45123-x",
+          "relevance": 71.3,
+          "ai_relevance": 3,
+          "type": "method",
+          "citations": 5,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "doi:10.3390/electricity6020030",
+          "title": "Forecasting Electricity Demand in Renewable-Integrated Systems: A Case Study from Italy Using Recurrent Neural Networks",
+          "year": 2025,
+          "url": "https://doi.org/10.3390/electricity6020030",
+          "relevance": 70.5,
+          "ai_relevance": 3,
+          "type": "applied",
+          "citations": 7,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "doi:10.3390/su16062328",
+          "title": "An Intelligent Hybrid Machine Learning Model for Sustainable Forecasting of Home Energy Demand and Electricity Price",
+          "year": 2024,
+          "url": "https://doi.org/10.3390/su16062328",
+          "relevance": 70.5,
+          "ai_relevance": 3,
+          "type": "method",
+          "citations": 29,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "title:on electric vehicle energy demand forecasting and the effect of federated learning",
+          "title": "On Electric Vehicle Energy Demand Forecasting and the Effect of Federated Learning",
+          "year": 2026,
+          "url": "https://arxiv.org/abs/2602.20782v1",
+          "relevance": 70.0,
+          "ai_relevance": 3,
+          "type": "method",
+          "citations": null,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "doi:10.3390/forecast6030042",
+          "title": "Electricity Consumption Forecasting: An Approach Using Cooperative Ensemble Learning with SHapley Additive exPlanations",
+          "year": 2026,
+          "url": "https://arxiv.org/abs/2605.25305v1",
+          "relevance": 70.0,
+          "ai_relevance": 3,
+          "type": "method",
+          "citations": null,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "title:short term electricity demand forecasting for new england a comprehensive machine learning benchmark with weather calendar and covid 19 indicators",
+          "title": "Short-Term Electricity Demand Forecasting for New England: A Comprehensive Machine Learning Benchmark with Weather, Calendar, and COVID-19 Indicators",
+          "year": 2026,
+          "url": "https://arxiv.org/abs/2606.20918v2",
+          "relevance": 70.0,
+          "ai_relevance": 3,
+          "type": "method",
+          "citations": null,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "doi:10.20535/1813-5420.1.2026.351525",
+          "title": "ELECTRICITY DEMAND FORECASTING IN SMART GRIDS BASED ON MACHINE LEARNING MODELS",
+          "year": 2026,
+          "url": "https://doi.org/10.20535/1813-5420.1.2026.351525",
+          "relevance": 70.0,
+          "ai_relevance": 3,
+          "type": "method",
+          "citations": 0,
+          "full_text": false,
+          "keyword_match": true
+        }
+      ]
+    },
+    {
+      "question": "employee attrition prediction",
+      "status": "success",
+      "expect": "results",
+      "shown": 8,
+      "keyword_hits": 8,
+      "interpretation": {
+        "problem": "employee attrition",
+        "core_terms": [
+          "employee",
+          "attrition"
+        ],
+        "context_terms": [],
+        "corrections": {},
+        "ai_assisted": false,
+        "outcome": null,
+        "task": null,
+        "features": [],
+        "dataset_check": null,
+        "options": []
+      },
+      "seconds": 90.7,
+      "gemini_calls": 1,
+      "full_text_papers": 2,
+      "with_citations": 3,
+      "papers": [
+        {
+          "key": "doi:10.55041/isjem07019",
+          "title": "EMS-DS: Design and Implementation of a Browser-Native Data Science Workflow Engine for Employee Attrition Prediction Using Ensemble Classification and K-Means Segmentation",
+          "year": 2026,
+          "url": "https://doi.org/10.55041/isjem07019",
+          "relevance": 70.0,
+          "ai_relevance": 3,
+          "type": "method",
+          "citations": 0,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "doi:10.70917/ijcisim-2026-5379",
+          "title": "An Innovative Approach to Predicting Employee Attrition through Optimized Neural Mining and Advanced Classification Techniques",
+          "year": 2026,
+          "url": "https://doi.org/10.70917/ijcisim-2026-5379",
+          "relevance": 70.0,
+          "ai_relevance": 3,
+          "type": "method",
+          "citations": 0,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "doi:10.3390/app13010267",
+          "title": "A Comparison of Machine Learning Approaches for Predicting Employee Attrition",
+          "year": 2022,
+          "url": "https://doi.org/10.3390/app13010267",
+          "relevance": 68.9,
+          "ai_relevance": 3,
+          "type": "method",
+          "citations": 55,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "doi:10.3390/math11061506",
+          "title": "A Fresnel Cosine Integral WASD Neural Network for the Classification of Employee Attrition",
+          "year": 2023,
+          "url": "https://doi.org/10.3390/math11061506",
+          "relevance": 68.7,
+          "ai_relevance": 3,
+          "type": "method",
+          "citations": 10,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "doi:10.47065/josyc.v3i4.2099",
+          "title": "Employee Attrition Prediction Using Feature Selection with Information Gain and Random Forest Classification",
+          "year": 2022,
+          "url": "https://doi.org/10.47065/josyc.v3i4.2099",
+          "relevance": 67.6,
+          "ai_relevance": 3,
+          "type": "method",
+          "citations": 8,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "doi:10.25215/8119070682.25",
+          "title": "HR ANALYTICS FOR EMPLOYEE ATTRITION PREDICTION USING MACHINE LEARNING",
+          "year": 2020,
+          "url": "https://doi.org/10.25215/8119070682.25",
+          "relevance": 64.0,
+          "ai_relevance": 3,
+          "type": "method",
+          "citations": 0,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "title:proactive intervention to downtrend employee attrition using artificial intelligence techniques",
+          "title": "Proactive Intervention to Downtrend Employee Attrition using Artificial Intelligence Techniques",
+          "year": 2018,
+          "url": "https://arxiv.org/abs/1807.04081v1",
+          "relevance": 62.0,
+          "ai_relevance": 3,
+          "type": "applied",
+          "citations": null,
+          "full_text": true,
+          "keyword_match": true
+        },
+        {
+          "key": "doi:10.1007/978-3-031-99958-1_27",
+          "title": "Integrating SAINT with Tree-Based Models: A Case Study in Employee Attrition Prediction",
+          "year": 2026,
+          "url": "https://arxiv.org/abs/2604.10337v1",
+          "relevance": 60.0,
+          "ai_relevance": 3,
+          "type": "applied",
+          "citations": null,
+          "full_text": true,
+          "keyword_match": true
+        }
+      ]
+    },
+    {
+      "question": "air quality prediction",
+      "status": "success",
+      "expect": "results",
+      "shown": 8,
+      "keyword_hits": 8,
+      "interpretation": {
+        "problem": "air quality prediction",
+        "core_terms": [
+          "air quality"
+        ],
+        "context_terms": [
+          "environmental monitoring",
+          "urban air"
+        ],
+        "corrections": {},
+        "ai_assisted": true,
+        "outcome": "pollutant concentration levels",
+        "task": "regression",
+        "features": [],
+        "dataset_check": null,
+        "options": []
+      },
+      "seconds": 58.2,
+      "gemini_calls": 2,
+      "full_text_papers": 0,
+      "with_citations": 3,
+      "papers": [
+        {
+          "key": "doi:10.30812/varian.v9i1.6046",
+          "title": "Evaluating Random Forest Regression for Air Quality Prediction",
+          "year": 2026,
+          "url": "https://doi.org/10.30812/varian.v9i1.6046",
+          "relevance": 83.3,
+          "ai_relevance": 3,
+          "type": "method",
+          "citations": 0,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "title:graphsvr a graph convolutional support vector regression framework for robust spatiotemporal air pollution forecasting",
+          "title": "GraphSVR: A Graph Convolutional Support Vector Regression Framework for Robust Spatiotemporal Air Pollution Forecasting",
+          "year": 2026,
+          "url": "https://arxiv.org/abs/2605.03795v3",
+          "relevance": 80.8,
+          "ai_relevance": 3,
+          "type": "method",
+          "citations": null,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "title:lightweight ml based air quality prediction for iot and embedded applications",
+          "title": "Lightweight ML-Based Air Quality Prediction for IoT and Embedded Applications",
+          "year": 2025,
+          "url": "https://arxiv.org/abs/2511.21857v1",
+          "relevance": 79.8,
+          "ai_relevance": 3,
+          "type": "method",
+          "citations": null,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "doi:10.3390/app15052546",
+          "title": "The Power of Machine Learning Methods and PSO in Air Quality Prediction",
+          "year": 2025,
+          "url": "https://doi.org/10.3390/app15052546",
+          "relevance": 79.7,
+          "ai_relevance": 3,
+          "type": "applied",
+          "citations": 7,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "title:benchmarking scientific machine learning models for air quality data",
+          "title": "Benchmarking Scientific Machine Learning Models for Air Quality Data",
+          "year": 2026,
+          "url": "https://arxiv.org/abs/2603.21039v2",
+          "relevance": 79.2,
+          "ai_relevance": 3,
+          "type": "method",
+          "citations": null,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "doi:10.1038/s41598-026-54918-x",
+          "title": "Regression based hybrid machine learning model performance evaluation on air quality index prediction in Kolkata",
+          "year": 2026,
+          "url": "https://doi.org/10.1038/s41598-026-54918-x",
+          "relevance": 79.2,
+          "ai_relevance": 3,
+          "type": "method",
+          "citations": 0,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "doi:10.31305/rrijm.2025.v10.n11.030",
+          "title": "Machine Learning-Based Prediction of Air Quality Index (AQI) in Mumbai: Comparative Analysis of Linear Regression, Random Forest, and XGBoost Models",
+          "year": 2025,
+          "url": "https://doi.org/10.31305/rrijm.2025.v10.n11.030",
+          "relevance": 77.8,
+          "ai_relevance": 3,
+          "type": "method",
+          "citations": 1,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "doi:10.3390/su17209136",
+          "title": "PM2.5: Air Quality Index Prediction Using Machine Learning: Evidence from Kuwait’s Air Quality Monitoring Stations",
+          "year": 2025,
+          "url": "https://doi.org/10.3390/su17209136",
+          "relevance": 77.3,
+          "ai_relevance": 3,
+          "type": "method",
+          "citations": 8,
+          "full_text": false,
+          "keyword_match": true
+        }
+      ]
+    },
+    {
+      "question": "crop yield prediction",
+      "status": "success",
+      "expect": "results",
+      "shown": 8,
+      "keyword_hits": 8,
+      "interpretation": {
+        "problem": "crop yield prediction",
+        "core_terms": [
+          "crop yield"
+        ],
+        "context_terms": [
+          "agriculture",
+          "farming"
+        ],
+        "corrections": {},
+        "ai_assisted": true,
+        "outcome": "crop yield",
+        "task": "regression",
+        "features": [],
+        "dataset_check": null,
+        "options": []
+      },
+      "seconds": 32.3,
+      "gemini_calls": 2,
+      "full_text_papers": 1,
+      "with_citations": 4,
+      "papers": [
+        {
+          "key": "doi:10.3390/agriengineering8010002",
+          "title": "FARM: Crop Yield Prediction via Regression on Prithvi’s Encoder for Satellite Sensing",
+          "year": 2026,
+          "url": "https://doi.org/10.3390/agriengineering8010002",
+          "relevance": 81.0,
+          "ai_relevance": 3,
+          "type": "method",
+          "citations": 3,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "doi:10.21293/1818-0442-2024-27-3-125-129",
+          "title": "Crop yield prediction in Ethiopia using gradient boosting regression",
+          "year": 2024,
+          "url": "https://doi.org/10.21293/1818-0442-2024-27-3-125-129",
+          "relevance": 78.5,
+          "ai_relevance": 3,
+          "type": "method",
+          "citations": 1,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "title:crop yield time series data prediction based on multiple hybrid machine learning models",
+          "title": "Crop Yield Time-Series Data Prediction Based on Multiple Hybrid Machine Learning Models",
+          "year": 2025,
+          "url": "https://arxiv.org/abs/2502.10405v1",
+          "relevance": 74.0,
+          "ai_relevance": 3,
+          "type": "method",
+          "citations": null,
+          "full_text": true,
+          "keyword_match": true
+        },
+        {
+          "key": "doi:10.22214/ijraset.2024.63648",
+          "title": "Crop Yield Prediction and Fertilizer Usage Using Logistic Regression",
+          "year": 2024,
+          "url": "https://doi.org/10.22214/ijraset.2024.63648",
+          "relevance": 74.0,
+          "ai_relevance": 3,
+          "type": "method",
+          "citations": 3,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "doi:10.56536/jicet.v4i2.136",
+          "title": "Crop Yield Prediction Using Machine-Learning",
+          "year": 2024,
+          "url": "https://doi.org/10.56536/jicet.v4i2.136",
+          "relevance": 73.8,
+          "ai_relevance": 3,
+          "type": "method",
+          "citations": 2,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "title:yieldsat a multimodal benchmark dataset for high resolution crop yield prediction",
+          "title": "YieldSAT: A Multimodal Benchmark Dataset for High-Resolution Crop Yield Prediction",
+          "year": 2026,
+          "url": "https://arxiv.org/abs/2604.00940v1",
+          "relevance": 70.0,
+          "ai_relevance": 3,
+          "type": "method",
+          "citations": null,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "doi:10.14719/pst.13575",
+          "title": "A machine learning-based smart crop yield prediction for selecting the best crop under specific climate and soil conditions",
+          "year": 2026,
+          "url": "https://doi.org/10.14719/pst.13575",
+          "relevance": 70.0,
+          "ai_relevance": 3,
+          "type": "method",
+          "citations": 0,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "doi:10.30955/gnj.07806",
+          "title": "Optimized machine learning framework for crop yield prediction using climate and emission data",
+          "year": 2026,
+          "url": "https://doi.org/10.30955/gnj.07806",
+          "relevance": 70.0,
+          "ai_relevance": 3,
+          "type": "method",
+          "citations": 0,
+          "full_text": false,
+          "keyword_match": true
+        }
+      ]
+    },
+    {
+      "question": "predict loan default",
+      "status": "success",
+      "expect": "results",
+      "shown": 8,
+      "keyword_hits": 8,
+      "interpretation": {
+        "problem": "loan default prediction",
+        "core_terms": [
+          "loan",
+          "default"
+        ],
+        "context_terms": [
+          "financial services",
+          "risk assessment"
+        ],
+        "corrections": {},
+        "ai_assisted": true,
+        "outcome": "default probability",
+        "task": "classification",
+        "features": [],
+        "dataset_check": null,
+        "options": []
+      },
+      "seconds": 69.3,
+      "gemini_calls": 2,
+      "full_text_papers": 0,
+      "with_citations": 2,
+      "papers": [
+        {
+          "key": "title:interpreting llms as credit risk classifiers do their feature explanations align with classical ml",
+          "title": "Interpreting LLMs as Credit Risk Classifiers: Do Their Feature Explanations Align with Classical ML?",
+          "year": 2025,
+          "url": "https://arxiv.org/abs/2510.25701v1",
+          "relevance": 76.5,
+          "ai_relevance": 3,
+          "type": "applied",
+          "citations": null,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "doi:10.55041/isjem06569",
+          "title": "Interpretable Loan Default Probability Prediction using Machine Learning",
+          "year": 2026,
+          "url": "https://doi.org/10.55041/isjem06569",
+          "relevance": 72.5,
+          "ai_relevance": 3,
+          "type": "applied",
+          "citations": 0,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "doi:10.54254/2753-8818/2025.ad26291",
+          "title": "Vehicle Loan Default Prediction Based on Machine Learning",
+          "year": 2025,
+          "url": "https://doi.org/10.54254/2753-8818/2025.ad26291",
+          "relevance": 71.5,
+          "ai_relevance": 3,
+          "type": "method",
+          "citations": 0,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "doi:10.4114/intartif.vol28iss75pp220-247",
+          "title": "Credit Risk Meets Large Language Models: Building a Risk Indicator from Loan Descriptions in P2P Lending",
+          "year": 2024,
+          "url": "https://arxiv.org/abs/2401.16458v3",
+          "relevance": 70.5,
+          "ai_relevance": 3,
+          "type": "method",
+          "citations": null,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "doi:10.1038/s41598-021-98361-6",
+          "title": "Loan default prediction of Chinese P2P market: a machine learning methodology",
+          "year": 2021,
+          "url": "https://doi.org/10.1038/s41598-021-98361-6",
+          "relevance": 70.5,
+          "ai_relevance": 3,
+          "type": "survey",
+          "citations": 60,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "title:attention based dynamic multilayer graph neural networks for loan default prediction",
+          "title": "Attention-based Dynamic Multilayer Graph Neural Networks for Loan Default Prediction",
+          "year": 2024,
+          "url": "https://arxiv.org/abs/2402.00299v2",
+          "relevance": 68.0,
+          "ai_relevance": 3,
+          "type": "method",
+          "citations": null,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "doi:10.3390/math12213423",
+          "title": "Ensemble-Based Machine Learning Algorithm for Loan Default Risk Prediction",
+          "year": 2024,
+          "url": "https://doi.org/10.3390/math12213423",
+          "relevance": 65.3,
+          "ai_relevance": 3,
+          "type": "method",
+          "citations": 24,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "title:an optimised greedy weighted ensemble framework for financial loan default prediction",
+          "title": "An Optimised Greedy-Weighted Ensemble Framework for Financial Loan Default Prediction",
+          "year": 2026,
+          "url": "https://arxiv.org/abs/2603.18927v1",
+          "relevance": 65.0,
+          "ai_relevance": 3,
+          "type": "method",
+          "citations": null,
+          "full_text": false,
+          "keyword_match": true
+        }
+      ]
+    },
+    {
+      "question": "sentiment analysis of product reviews",
+      "status": "success",
+      "expect": "results",
+      "shown": 8,
+      "keyword_hits": 8,
+      "interpretation": {
+        "problem": "sentiment reviews",
+        "core_terms": [
+          "sentiment",
+          "reviews"
+        ],
+        "context_terms": [
+          "e-commerce",
+          "consumer products"
+        ],
+        "corrections": {},
+        "ai_assisted": true,
+        "outcome": "sentiment polarity",
+        "task": "classification",
+        "features": [],
+        "dataset_check": null,
+        "options": []
+      },
+      "seconds": 49.7,
+      "gemini_calls": 2,
+      "full_text_papers": 3,
+      "with_citations": 4,
+      "papers": [
+        {
+          "key": "title:benchmarking logistic regression svm and lightgbm against bilstm with attention for sentiment analysis on indonesian product reviews",
+          "title": "Benchmarking Logistic Regression, SVM, and LightGBM Against BiLSTM with Attention for Sentiment Analysis on Indonesian Product Reviews",
+          "year": 2026,
+          "url": "https://arxiv.org/abs/2604.25452v1",
+          "relevance": 77.5,
+          "ai_relevance": 3,
+          "type": "method",
+          "citations": null,
+          "full_text": true,
+          "keyword_match": true
+        },
+        {
+          "key": "title:benchmarking logistic regression svm naive bayes and indobert fine tuning for sentiment analysis on indonesian product reviews",
+          "title": "Benchmarking Logistic Regression, SVM, Naive Bayes, and IndoBERT Fine-Tuning for Sentiment Analysis on Indonesian Product Reviews",
+          "year": 2026,
+          "url": "https://arxiv.org/abs/2605.03439v1",
+          "relevance": 77.5,
+          "ai_relevance": 3,
+          "type": "method",
+          "citations": null,
+          "full_text": true,
+          "keyword_match": true
+        },
+        {
+          "key": "doi:10.54254/2753-8818/19/20230528",
+          "title": "Recommendation and sentiment classification on E-Commerce reviews",
+          "year": 2023,
+          "url": "https://doi.org/10.54254/2753-8818/19/20230528",
+          "relevance": 77.5,
+          "ai_relevance": 3,
+          "type": "method",
+          "citations": 1,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "doi:10.30871/jaic.v9i5.10524",
+          "title": "Sentiment Classification Analysis of Tokopedia Reviews Using TF-IDF, SMOTE, and Traditional Machine Learning Models",
+          "year": 2025,
+          "url": "https://doi.org/10.30871/jaic.v9i5.10524",
+          "relevance": 74.5,
+          "ai_relevance": 3,
+          "type": "method",
+          "citations": 1,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "doi:10.36948/ijfmr.2023.v05i05.6090",
+          "title": "Sentiment Analysis in Online Product Reviews: Mining Customer Opinions for Sentiment Classification",
+          "year": 2023,
+          "url": "https://doi.org/10.36948/ijfmr.2023.v05i05.6090",
+          "relevance": 73.9,
+          "ai_relevance": 3,
+          "type": "method",
+          "citations": 13,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "doi:10.47344/sdubnts.v63i2.988",
+          "title": "COMPARISON OF DIFFERENT CLASSIFICATION MODELSFOR SENTIMENT ANALYSIS",
+          "year": 2024,
+          "url": "https://doi.org/10.47344/sdubnts.v63i2.988",
+          "relevance": 65.5,
+          "ai_relevance": 3,
+          "type": "method",
+          "citations": 0,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "doi:10.3390/computers13120340",
+          "title": "A Comparative Study of Sentiment Analysis on Customer Reviews Using Machine Learning and Deep Learning",
+          "year": 2024,
+          "url": "https://doi.org/10.3390/computers13120340",
+          "relevance": 63.0,
+          "ai_relevance": 3,
+          "type": "method",
+          "citations": 32,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "title:dual model sentiment analysis of consumer reviews in the retail coffee sector using machine learning and deep learning approaches",
+          "title": "Dual-Model Sentiment Analysis of Consumer Reviews in the Retail Coffee Sector Using Machine Learning and Deep Learning Approaches",
+          "year": 2026,
+          "url": "https://arxiv.org/abs/2608.12007v1",
+          "relevance": 62.5,
+          "ai_relevance": 3,
+          "type": "applied",
+          "citations": null,
+          "full_text": true,
+          "keyword_match": true
+        }
+      ]
+    },
+    {
+      "question": "predict sales",
+      "status": "success",
+      "expect": "clarify",
+      "shown": 8,
+      "keyword_hits": 8,
+      "interpretation": {
+        "problem": "sales",
+        "core_terms": [
+          "sales"
+        ],
+        "context_terms": [],
+        "corrections": {},
+        "ai_assisted": false,
+        "outcome": null,
+        "task": null,
+        "features": [],
+        "dataset_check": null,
+        "options": []
+      },
+      "seconds": 53.0,
+      "gemini_calls": 1,
+      "full_text_papers": 1,
+      "with_citations": 4,
+      "papers": [
+        {
+          "key": "doi:10.47191/ijmra/v9-i5-40",
+          "title": "Factors Affecting Online Retail Sales Performance: A Machine Learning Approach Using the Bigmart Dataset",
+          "year": 2026,
+          "url": "https://doi.org/10.47191/ijmra/v9-i5-40",
+          "relevance": 60.0,
+          "ai_relevance": 3,
+          "type": "method",
+          "citations": 0,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "doi:10.55640/ijmcsit-v03i09-07",
+          "title": "Machine Learning-Based Customer Demand and Online Sales Prediction",
+          "year": 2026,
+          "url": "https://doi.org/10.55640/ijmcsit-v03i09-07",
+          "relevance": 60.0,
+          "ai_relevance": 3,
+          "type": "method",
+          "citations": 0,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "doi:10.3390/make4010006",
+          "title": "Machine Learning Based Restaurant Sales Forecasting",
+          "year": 2022,
+          "url": "https://doi.org/10.3390/make4010006",
+          "relevance": 58.8,
+          "ai_relevance": 3,
+          "type": "applied",
+          "citations": 47,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "doi:10.54097/6dxq4p06",
+          "title": "Sales Prediction Based on Machine Learning Approach: Support Vector Machine, Xgboost and Random Forest",
+          "year": 2024,
+          "url": "https://doi.org/10.54097/6dxq4p06",
+          "relevance": 58.8,
+          "ai_relevance": 3,
+          "type": "method",
+          "citations": 2,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "doi:10.54097/hset.v47i.8170",
+          "title": "Walmart Sales Prediction Based on Machine Learning",
+          "year": 2023,
+          "url": "https://doi.org/10.54097/hset.v47i.8170",
+          "relevance": 58.2,
+          "ai_relevance": 3,
+          "type": "method",
+          "citations": 4,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "doi:10.1109/icses63445.2024.10762950",
+          "title": "Enhancing Retail Sales Forecasting with Optimized Machine Learning Models",
+          "year": 2024,
+          "url": "https://arxiv.org/abs/2410.13773v2",
+          "relevance": 58.0,
+          "ai_relevance": 3,
+          "type": "method",
+          "citations": null,
+          "full_text": true,
+          "keyword_match": true
+        },
+        {
+          "key": "doi:10.3390/data4010015",
+          "title": "Machine-Learning Models for Sales Time Series Forecasting",
+          "year": 2019,
+          "url": "https://doi.org/10.3390/data4010015",
+          "relevance": 56.8,
+          "ai_relevance": 3,
+          "type": "method",
+          "citations": 181,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "doi:10.54691/bcpbm.v23i.1474",
+          "title": "Sales Prediction Based on Machine Learning Scenarios",
+          "year": 2022,
+          "url": "https://doi.org/10.54691/bcpbm.v23i.1474",
+          "relevance": 56.0,
+          "ai_relevance": 3,
+          "type": "applied",
+          "citations": 0,
+          "full_text": false,
+          "keyword_match": true
+        }
+      ]
+    },
+    {
+      "question": "anomaly detection in industrial sensor data",
+      "status": "success",
+      "expect": "results",
+      "shown": 8,
+      "keyword_hits": 8,
+      "interpretation": {
+        "problem": "anomaly sensor",
+        "core_terms": [
+          "anomaly",
+          "sensor"
+        ],
+        "context_terms": [
+          "industrial",
+          "manufacturing"
+        ],
+        "corrections": {},
+        "ai_assisted": true,
+        "outcome": "anomaly detection",
+        "task": "anomaly detection",
+        "features": [],
+        "dataset_check": null,
+        "options": []
+      },
+      "seconds": 85.1,
+      "gemini_calls": 2,
+      "full_text_papers": 0,
+      "with_citations": 1,
+      "papers": [
+        {
+          "key": "doi:10.1038/s41598-026-61786-y",
+          "title": "Hybrid quantum-classical machine learning for industrial multi-anomaly detection via single acoustic sensor",
+          "year": 2026,
+          "url": "https://doi.org/10.1038/s41598-026-61786-y",
+          "relevance": 80.0,
+          "ai_relevance": 3,
+          "type": "method",
+          "citations": 0,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "doi:10.55529/jaimlnn.61.31.41",
+          "title": "HAC-UML: A hybrid autoencoder-enhanced clustering framework for unsupervised anomaly detection in industrial IIoT sensor networks",
+          "year": 2026,
+          "url": "https://doi.org/10.55529/jaimlnn.61.31.41",
+          "relevance": 80.0,
+          "ai_relevance": 3,
+          "type": "method",
+          "citations": 0,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "doi:10.3390/s22072479",
+          "title": "Anomaly Detection with Feature Extraction Based on Machine Learning Using Hydraulic System IoT Sensor Data",
+          "year": 2022,
+          "url": "https://doi.org/10.3390/s22072479",
+          "relevance": 78.8,
+          "ai_relevance": 3,
+          "type": "applied",
+          "citations": 44,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "title:minimal configuration anomaly detection for iiot sensors",
+          "title": "Minimal-Configuration Anomaly Detection for IIoT Sensors",
+          "year": 2021,
+          "url": "https://arxiv.org/abs/2110.04049v1",
+          "relevance": 75.0,
+          "ai_relevance": 3,
+          "type": "applied",
+          "citations": null,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "title:anomaly detection and inter sensor transfer learning on smart manufacturing datasets",
+          "title": "Anomaly Detection and Inter-Sensor Transfer Learning on Smart Manufacturing Datasets",
+          "year": 2022,
+          "url": "https://arxiv.org/abs/2206.06355v1",
+          "relevance": 66.0,
+          "ai_relevance": 3,
+          "type": "applied",
+          "citations": null,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "title:lstm based encoder decoder for multi sensor anomaly detection",
+          "title": "LSTM-based Encoder-Decoder for Multi-sensor Anomaly Detection",
+          "year": 2016,
+          "url": "https://arxiv.org/abs/1607.00148v2",
+          "relevance": 65.0,
+          "ai_relevance": 3,
+          "type": "applied",
+          "citations": null,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "doi:10.1109/bigdata62323.2024.10825081",
+          "title": "Optimal Transport for Efficient, Unsupervised Anomaly Detection on Industrial Data",
+          "year": 2026,
+          "url": "https://arxiv.org/abs/2609.13940v1",
+          "relevance": 65.0,
+          "ai_relevance": 3,
+          "type": "applied",
+          "citations": null,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "title:machine learning based anomaly detection of correlated sensor data an integrated principal component analysis autoencoder approach",
+          "title": "Machine Learning-Based Anomaly Detection of Correlated Sensor Data: An Integrated Principal Component Analysis-Autoencoder Approach",
+          "year": 2025,
+          "url": "https://arxiv.org/abs/2505.24044v1",
+          "relevance": 64.0,
+          "ai_relevance": 3,
+          "type": "applied",
+          "citations": null,
+          "full_text": false,
+          "keyword_match": true
+        }
+      ]
+    },
+    {
+      "question": "movie recommendation system",
+      "status": "success",
+      "expect": "results",
+      "shown": 8,
+      "keyword_hits": 8,
+      "interpretation": {
+        "problem": "movie recommendation system",
+        "core_terms": [
+          "recommendation"
+        ],
+        "context_terms": [
+          "movies",
+          "user preferences"
+        ],
+        "corrections": {},
+        "ai_assisted": true,
+        "outcome": "personalized movie suggestions",
+        "task": "ranking",
+        "features": [],
+        "dataset_check": null,
+        "options": []
+      },
+      "seconds": 53.0,
+      "gemini_calls": 2,
+      "full_text_papers": 0,
+      "with_citations": 4,
+      "papers": [
+        {
+          "key": "doi:10.3390/math11040895",
+          "title": "Multimodal Movie Recommendation System Using Deep Learning",
+          "year": 2023,
+          "url": "https://doi.org/10.3390/math11040895",
+          "relevance": 70.3,
+          "ai_relevance": 3,
+          "type": "applied",
+          "citations": 93,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "title:movie recommendation with poster attention via multi modal transformer feature fusion",
+          "title": "Movie Recommendation with Poster Attention via Multi-modal Transformer Feature Fusion",
+          "year": 2024,
+          "url": "https://arxiv.org/abs/2407.09157v1",
+          "relevance": 69.7,
+          "ai_relevance": 3,
+          "type": "applied",
+          "citations": null,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "doi:10.54097/ckc06k37",
+          "title": "Design and Verification of a Genre-Based Movie Recommendation System Using Movie Attributes and Random Forest",
+          "year": 2026,
+          "url": "https://doi.org/10.54097/ckc06k37",
+          "relevance": 68.8,
+          "ai_relevance": 3,
+          "type": "method",
+          "citations": 1,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "doi:10.36948/ijfmr.2025.v07i02.41319",
+          "title": "movie recommendation system using machine learning",
+          "year": 2025,
+          "url": "https://doi.org/10.36948/ijfmr.2025.v07i02.41319",
+          "relevance": 68.5,
+          "ai_relevance": 3,
+          "type": "method",
+          "citations": 4,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "title:transforming movie recommendations with advanced machine learning a study of nmf svd and k means clustering",
+          "title": "Transforming Movie Recommendations with Advanced Machine Learning: A Study of NMF, SVD,and K-Means Clustering",
+          "year": 2024,
+          "url": "https://arxiv.org/abs/2407.08916v1",
+          "relevance": 68.0,
+          "ai_relevance": 3,
+          "type": "method",
+          "citations": null,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "title:comprehensive movie recommendation system",
+          "title": "Comprehensive Movie Recommendation System",
+          "year": 2021,
+          "url": "https://arxiv.org/abs/2112.12463v1",
+          "relevance": 66.7,
+          "ai_relevance": 3,
+          "type": "method",
+          "citations": null,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "doi:10.61453/jods.v2022no05",
+          "title": "Movie Recommendation System Based on Sentiment Analysis on Movie Reviews",
+          "year": 2022,
+          "url": "https://doi.org/10.61453/jods.v2022no05",
+          "relevance": 64.3,
+          "ai_relevance": 3,
+          "type": "survey",
+          "citations": 0,
+          "full_text": false,
+          "keyword_match": true
+        },
+        {
+          "key": "doi:10.55810/2313-0083.1043",
+          "title": "Movie Recommendation System Using Content Based Filtering",
+          "year": 2023,
+          "url": "https://doi.org/10.55810/2313-0083.1043",
+          "relevance": 63.2,
+          "ai_relevance": 3,
+          "type": "method",
+          "citations": 4,
+          "full_text": false,
+          "keyword_match": true
+        }
+      ]
+    }
+  ]
+}

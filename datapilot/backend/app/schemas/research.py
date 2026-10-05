@@ -88,6 +88,8 @@ class Paper(BaseModel):
     doi: Optional[str] = None
     abstract_snippet: Optional[str] = None
     citation_count: Optional[int] = Field(None, description="Never estimated; None when not retrieved.")
+    open_access_url: Optional[str] = Field(None, description="A link to an open-access PDF, only when the index states one.")
+    full_text_chars: Optional[int] = Field(None, description="How much of the paper's own text was read (first pages), if any.")
     paper_type: Optional[str] = Field(None, description="survey | applied | method: read from the title/abstract wording.")
     matched_queries: list[str] = Field(default_factory=list)
     matched_terms: list[str] = Field(default_factory=list, description="Subject words of the question found in the title/abstract.")

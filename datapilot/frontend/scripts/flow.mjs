@@ -29,7 +29,7 @@ page.on("pageerror", (e) => log.push(String(e)));
 if (mode === "discovery" || mode === "research") {
   await page.locator("#composer-input").fill(PROJECT);
   await page.locator("#composer-input").press("Enter");
-  await page.waitForTimeout(1200);
+  await page.waitForTimeout(2500);
   await page.screenshot({ path: `${OUT}/${mode}-${tag}-pending.png` });
   await page.locator('article[aria-label^="Dataset"]').first().waitFor({ timeout: 120000 });
   await page.waitForTimeout(800);
@@ -57,6 +57,7 @@ if (mode === "analyze") {
   await page.locator("#composer-input").fill("Here is my customer data. I want to predict which customers will churn.");
   await page.locator("#composer-input").press("Enter");
   await page.waitForTimeout(500);
+  await page.waitForTimeout(700);
   await page.screenshot({ path: `${OUT}/analyze-${tag}-pending.png` });
   await page.getByText("Dataset profile").waitFor({ timeout: 120000 });
   await page.waitForTimeout(800);

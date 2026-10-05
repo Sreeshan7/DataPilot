@@ -1,3 +1,4 @@
+import type { ProgressEvent } from "@/lib/live";
 import type { ResearchRequest, ResearchResponse } from "@/types";
 import { ApiError, postJson, type RequestOptions } from "./client";
 import { postSse } from "./stream";
@@ -10,10 +11,7 @@ export function discoverResearch(request: ResearchRequest, options?: RequestOpti
   return postJson<ResearchResponse>("/api/v1/research/discover", request, { timeoutMs: 90_000, ...options });
 }
 
-/** One live stage reported by the server while it works. */
-export type ProgressEvent =
-  | { type: "plan"; steps: { id: string; label: string }[] }
-  | { type: "step"; id: string; state: "running" | "done" | "skipped"; detail?: string | null };
+export type { ProgressEvent };
 
 /**
  * POST /api/v1/research/stream: the same work and the same final answer as `discoverResearch`, with each stage

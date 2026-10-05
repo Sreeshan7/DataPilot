@@ -36,6 +36,7 @@ export function PaperCard({ paper, index }: { paper: Paper; index: number }) {
       </p>
       <div className="mt-3 flex flex-wrap items-center gap-1.5">
         <Badge tone="accent">Relevance {Math.round(paper.relevance_score)}</Badge>
+        {paper.retrieval_status === "full_text" && <Badge tone="success" title="Methods and figures for this paper were matched in the first pages of its own open-access text">Full text read</Badge>}
         {paper.paper_type && <Badge tone={paper.paper_type === "survey" ? "info" : "neutral"} title="Read from the title and abstract wording">{paper.paper_type === "survey" ? "Survey" : paper.paper_type === "applied" ? "Applied study" : "Method paper"}</Badge>}
         {paper.citation_count ? <Badge title="Citation count reported by the index">{paper.citation_count.toLocaleString()} citations</Badge> : null}
         {paper.ai_relevance != null && <Badge tone={paper.ai_relevance >= 3 ? "success" : "info"} title="An AI model's judgement of topical fit, not a fact about the paper"><Sparkles className="size-3" aria-hidden />AI fit {paper.ai_relevance}/3</Badge>}
@@ -50,11 +51,18 @@ export function PaperCard({ paper, index }: { paper: Paper; index: number }) {
           <p className="mt-2 text-xs text-subtle">Only this snippet was retrieved; the full paper was not opened.</p>
         </Disclosure>
       )}
-      {url && (
-        <a href={url} target="_blank" rel="noopener noreferrer nofollow" className="mt-2.5 inline-flex items-center gap-1.5 text-[13px] text-muted-foreground hover:text-foreground">
-          {hostOf(url)} <ExternalLink className="size-3.5" aria-hidden />
-        </a>
-      )}
+      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5">
+        {url && (
+          <a href={url} target="_blank" rel="noopener noreferrer nofollow" className="inline-flex items-center gap-1.5 text-[13px] text-muted-foreground hover:text-foreground">
+            {hostOf(url)} <ExternalLink className="size-3.5" aria-hidden />
+          </a>
+        )}
+        {safeUrl(paper.open_access_url ?? "") && (
+          <a href={safeUrl(paper.open_access_url ?? "") ?? undefined} target="_blank" rel="noopener noreferrer nofollow" className="inline-flex items-center gap-1.5 text-[13px] text-accent hover:underline">
+            Open PDF <ExternalLink className="size-3.5" aria-hidden />
+          </a>
+        )}
+      </div>
     </article>
   );
 }
@@ -87,7 +95,7 @@ function Benchmarks({ items }: { items: ReportedMetric[] }) {
               <tr key={`${m.paper_id}-${m.metric}-${i}`} className="align-top">
                 <td className="px-3.5 py-2">{m.metric}{m.context ? <div className="text-xs text-subtle">{m.context}</div> : null}</td>
                 <td className="py-2 font-medium tabular-nums">{m.value}</td>
-                <td className="py-2 text-muted-foreground">{m.method ?? "—"}</td>
+                <td className="py-2 text-muted-foreground">{m.method ?? "—"}{m.evidence === "paper_text" ? <div className="text-xs text-subtle">from the paper's text</div> : null}</td>
                 <td className="px-3.5 py-2"><a href={safeUrl(m.url) ?? undefined} target="_blank" rel="noopener noreferrer nofollow" className="line-clamp-2 text-accent hover:underline [overflow-wrap:anywhere]">{m.paper_title}</a></td>
               </tr>
             ))}

@@ -16,6 +16,7 @@ from typing import Optional
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 
+from app.core import progress
 from app.core.logging_config import get_logger
 from app.schemas.analysis_response import DatasetAnalysisResponse
 from app.schemas.project import ErrorCode, ErrorDetail, ErrorResponse
@@ -107,7 +108,9 @@ async def execute_analysis(
 
     notices: list[str] = []
     if goal and outcome.parsed is not None:
+        progress.start("ai-target", "Matching your goal to a column")
         outcome, picked = await _refine_target(outcome, goal)
+        progress.done("ai-target", f"suggested {picked}" if picked else "kept the detected columns")
         if picked:
             notices.append(f"'{picked}' was suggested as the target by an AI model from your goal and the column names; confirm it.")
     analysis = outcome.analysis

@@ -76,7 +76,7 @@ def create_app() -> FastAPI:
     upload_limit = settings.analysis_max_upload_bytes + 256 * 1024  # form fields + multipart framing
     app.add_middleware(
         BodySizeLimitMiddleware,
-        limits={"/datasets/analyze": upload_limit, "/assist": upload_limit},
+        limits={"/datasets/analyze": upload_limit, "/assist": upload_limit, "/assist/stream": upload_limit},
     )
 
     app.include_router(project_analysis_router, prefix=settings.api_v1_prefix)

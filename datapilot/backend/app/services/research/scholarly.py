@@ -36,6 +36,11 @@ def query_words(query: str, limit: int = 8) -> list[str]:
     return words[:limit]
 
 
+def _oa_link(value: object) -> Optional[str]:
+    """An open-access link is kept only if it is an https URL; nothing is fetched here."""
+    return value if isinstance(value, str) and value.startswith("https://") and len(value) <= 2048 else None
+
+
 class _Base:
     fallback = False
     delay = 0.2
@@ -90,7 +95,7 @@ class OpenAlexProvider(_Base):
             "search": " ".join(query_words(query, 10)) or query,
             "per-page": max(1, min(limit, 25)),
             "filter": "type:article|preprint|review,has_abstract:true",
-            "select": "id,title,display_name,publication_year,doi,authorships,abstract_inverted_index,primary_location,cited_by_count",
+            "select": "id,title,display_name,publication_year,doi,authorships,abstract_inverted_index,primary_location,cited_by_count,open_access",
         }
         data = (await self._get(self.URL, params)).json()
         hits: list[SearchHit] = []
@@ -110,6 +115,7 @@ class OpenAlexProvider(_Base):
                 doi=doi.replace("https://doi.org/", "") if isinstance(doi, str) else None,
                 venue=((location.get("source") or {}).get("display_name") if isinstance(location, dict) else None),
                 citations=work.get("cited_by_count") if isinstance(work.get("cited_by_count"), int) else None,
+                oa_url=_oa_link((work.get("open_access") or {}).get("oa_url") if isinstance(work.get("open_access"), dict) else None),
                 academic=True))
         return hits[:limit]
 
@@ -130,7 +136,7 @@ class SemanticScholarProvider(_Base):
         params = {
             "query": " ".join(query_words(query, 10)) or query,
             "limit": max(1, min(limit, 20)),
-            "fields": "title,abstract,year,authors,venue,externalIds,citationCount,url",
+            "fields": "title,abstract,year,authors,venue,externalIds,citationCount,url,openAccessPdf",
         }
         data = (await self._get(self.URL, params)).json()
         hits: list[SearchHit] = []
@@ -150,7 +156,9 @@ class SemanticScholarProvider(_Base):
             citations = paper.get("citationCount") if isinstance(paper.get("citationCount"), int) else None
             hits.append(SearchHit(
                 title=title, url=url, snippet=abstract, query=query, provider=self.name, authors=authors or None,
-                year=year, doi=doi, venue=_clean(paper.get("venue")) or None, citations=citations, academic=True))
+                year=year, doi=doi, venue=_clean(paper.get("venue")) or None, citations=citations,
+                oa_url=_oa_link((paper.get("openAccessPdf") or {}).get("url") if isinstance(paper.get("openAccessPdf"), dict) else None),
+                academic=True))
         return hits[:limit]
 
 
@@ -190,7 +198,8 @@ class ArxivProvider(_Base):
             hits.append(SearchHit(
                 title=title, url=url.replace("http://", "https://", 1), snippet=_clean(entry.findtext(f"{_ATOM}summary"))[:MAX_ABSTRACT],
                 query=query, provider=self.name, authors=tuple(a for a in authors if a) or None, year=year, doi=doi,
-                venue="arXiv", academic=True))
+                venue="arXiv", oa_url=_oa_link(url.replace("http://", "https://", 1).replace("/abs/", "/pdf/")),
+                academic=True))
         return hits[:limit]
 
 

@@ -48,6 +48,8 @@ class SearchHit:
     doi: Optional[str] = None
     venue: Optional[str] = None
     citations: Optional[int] = None
+    #: A link to an open-access PDF, when the index states one (never guessed).
+    oa_url: Optional[str] = None
     #: True when the provider is itself a scholarly index, so the host allowlist is not needed.
     academic: bool = False
 

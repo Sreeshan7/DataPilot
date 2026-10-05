@@ -67,3 +67,64 @@ export async function postSse(
     clearTimeout(timer);
   }
 }
+
+/**
+ * POST a multipart form and read a text/event-stream response. Uses XMLHttpRequest so the upload progress is real
+ * (fetch cannot report it) and the response can be read while it is still arriving.
+ */
+export function postFormSse(
+  path: string, form: FormData,
+  { signal, onEvent, onUploadProgress, onUploadComplete, idleTimeoutMs = 90_000 }: {
+    signal?: AbortSignal; onEvent: (e: SseEvent) => void; onUploadProgress?: (fraction: number) => void;
+    onUploadComplete?: () => void; idleTimeoutMs?: number;
+  },
+): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", `${BASE}${path}`);
+    xhr.setRequestHeader("Accept", "text/event-stream");
+    xhr.responseType = "text";
+    let consumed = 0;
+    let buffer = "";
+    let idle = false;
+    let timer = setTimeout(() => { idle = true; xhr.abort(); }, idleTimeoutMs);
+    const bump = () => { clearTimeout(timer); timer = setTimeout(() => { idle = true; xhr.abort(); }, idleTimeoutMs); };
+    const finish = () => clearTimeout(timer);
+    const network = () => new ApiError("network", "DataPilot can't be reached right now. Check that the backend is running, then try again.");
+
+    const drain = () => {
+      if (xhr.status < 200 || xhr.status >= 300) return; // an error body is JSON, handled on load
+      buffer += xhr.responseText.slice(consumed);
+      consumed = xhr.responseText.length;
+      const parsed = parseSse(buffer);
+      buffer = parsed.rest;
+      parsed.events.forEach(onEvent);
+    };
+
+    xhr.upload.onprogress = (event) => { bump(); if (event.lengthComputable) onUploadProgress?.(event.loaded / event.total); };
+    xhr.upload.onload = () => onUploadComplete?.();
+    xhr.onprogress = () => { bump(); drain(); };
+    xhr.onload = () => {
+      finish();
+      if (xhr.status >= 200 && xhr.status < 300) {
+        buffer += xhr.responseText.slice(consumed);
+        consumed = xhr.responseText.length;
+        const parsed = parseSse(buffer + "\n\n"); // the last event may lack its blank line
+        parsed.events.forEach(onEvent);
+        resolve();
+        return;
+      }
+      let body: unknown;
+      try { body = JSON.parse(xhr.responseText); } catch { body = undefined; }
+      reject(toApiError(xhr.status, body));
+    };
+    xhr.onerror = () => { finish(); reject(network()); };
+    xhr.ontimeout = () => { finish(); reject(new ApiError("timeout", "That took too long to answer. Please try again.")); };
+    xhr.onabort = () => { finish(); reject(idle ? new ApiError("timeout", "That took too long to answer. Please try again.") : new ApiError("aborted", "Cancelled.", undefined, undefined, false)); };
+    if (signal) {
+      if (signal.aborted) { xhr.abort(); return; }
+      signal.addEventListener("abort", () => xhr.abort(), { once: true });
+    }
+    xhr.send(form);
+  });
+}

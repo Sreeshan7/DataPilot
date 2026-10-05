@@ -145,6 +145,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/assist/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Same as /assist, with live progress (Server-Sent Events)
+         * @description Same inputs, same work and same final body as `POST /assist`, delivered as a text/event-stream: `plan`, `step` (id, state running|done|skipped, optional label and detail) as each stage really happens, then `result` (the AssistResponse) or `error` ({status, detail}).
+         */
+        post: operations["assist_stream_api_v1_assist_stream_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/research/discover": {
         parameters: {
             query?: never;
@@ -505,6 +525,35 @@ export interface components {
             /**
              * Use Ai
              * @description Let Gemini rephrase project ideas (prose only).
+             * @default false
+             */
+            use_ai: boolean;
+        };
+        /** Body_assist_stream_api_v1_assist_stream_post */
+        Body_assist_stream_api_v1_assist_stream_post: {
+            /** Message */
+            message?: string | null;
+            /** Project Goal */
+            project_goal?: string | null;
+            /** File */
+            file?: string | null;
+            /** Dataset Name */
+            dataset_name?: string | null;
+            /** Dataset Url */
+            dataset_url?: string | null;
+            /** Source */
+            source?: string | null;
+            /** Target */
+            target?: string | null;
+            /** Sheet Name */
+            sheet_name?: string | null;
+            /**
+             * Limit
+             * @default 10
+             */
+            limit: number;
+            /**
+             * Use Ai
              * @default false
              */
             use_ai: boolean;
@@ -2232,6 +2281,16 @@ export interface components {
              */
             citation_count?: number | null;
             /**
+             * Open Access Url
+             * @description A link to an open-access PDF, only when the index states one.
+             */
+            open_access_url?: string | null;
+            /**
+             * Full Text Chars
+             * @description How much of the paper's own text was read (first pages), if any.
+             */
+            full_text_chars?: number | null;
+            /**
              * Paper Type
              * @description survey | applied | method: read from the title/abstract wording.
              */
@@ -3509,6 +3568,70 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["AssistResponse"];
                 };
+            };
+            /** @description The upload is larger than the limit */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unsupported file type */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The input could not be used */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description A source rate limit was reached */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description A source was unavailable */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description A source or the analysis timed out */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    assist_stream_api_v1_assist_stream_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_assist_stream_api_v1_assist_stream_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description The upload is larger than the limit */
             413: {

@@ -29,6 +29,7 @@ from app.services.research.normalize import normalise
 from app.services.research.providers import ProviderError, ResearchProvider, SearchHit, WebSearchProvider
 from app.services.research.scholarly import ArxivProvider, CrossrefProvider, OpenAlexProvider, SemanticScholarProvider
 from app.services.research import assist
+from app.services.research.fulltext import apply_full_text, read_full_text
 from app.services.research.progress import Progress
 from app.services.research.queries import QueryPlan, build_queries, check_dataset, understand
 from app.services.research.ranking import rank
@@ -51,8 +52,10 @@ class ResearchService:
     def __init__(
         self, settings: Optional[Settings] = None, provider: Optional[ResearchProvider] = None,
         writer: Optional[ResearchWriter] = None, providers: Optional[list[ResearchProvider]] = None,
+        fulltext_client=None, resolver=None,
     ) -> None:
         self._settings = settings or get_settings()
+        self._fulltext_client, self._resolver = fulltext_client, resolver
         if providers is not None:
             self._providers = providers
         elif provider is not None:
@@ -127,6 +130,9 @@ class ResearchService:
         writer = self._research_writer() if wants_assist else None
         can_assist = writer is not None and writer.is_configured and getattr(writer, "headroom", 99) >= ASSIST_MIN_HEADROOM
         extra: list[str] = []
+        # Asking is reserved for a bare, underspecified question: one subject word, no conditions, no dataset or target.
+        underspecified = (len(plan.core_groups) <= 1 and not plan.context_terms and not request.project.target
+                          and not (request.dataset and (request.dataset.columns or request.dataset.target)))
         steps = [("understand", "Reading your question")]
         if can_assist:
             steps.append(("ai-question", "Asking AI for synonyms and related terms"))
@@ -173,7 +179,7 @@ class ResearchService:
             features=request.project.features[:8], options=plan.options,
             dataset_check=DatasetCheck(status=plan.dataset_check[0], note=plan.dataset_check[1], source=plan.dataset_check[2])
             if plan.dataset_check else None)
-        if plan.clarification and not request.options.confirmed:  # ask once instead of guessing which problem was meant
+        if plan.clarification and not request.options.confirmed and underspecified:  # ask once instead of guessing which problem was meant
             return self._response(ResearchStatus.NEEDS_CLARIFICATION, plan.clarification, queries, interpretation=shown)
         if not s.research_enabled:
             return self._response(ResearchStatus.SEARCH_UNAVAILABLE, "Research is turned off on this server.", queries,
@@ -230,9 +236,19 @@ class ResearchService:
                 gemini=GeminiResearchUsage(requested=request.options.use_ai, calls_made=len(assisted),
                                            assisted=assisted))
 
+        texts: dict[str, str] = {}
+        if s.research_fulltext_enabled and any(p.open_access_url for p in selected):
+            await pg.start("fulltext", "Reading the open-access full text of the top papers")
+            kwargs = {"resolver": self._resolver} if self._resolver else {}
+            texts = await read_full_text(selected, s, self._fulltext_client, **kwargs)
+            if texts:
+                selected = apply_full_text(selected, texts)
+                await pg.done("fulltext", f"{len(texts)} paper{'s' if len(texts) != 1 else ''} read")
+            else:
+                await pg.skip("fulltext", "no open-access text could be read")
         await pg.start("methods")
         methods = method_tools.aggregate_methods(selected)
-        metrics = method_tools.extract_metrics(selected)
+        metrics = method_tools.extract_metrics(selected, texts)
         await pg.done("methods", f"{len(methods)} methods, {len(metrics)} reported figures")
         await pg.start("recommend")
         recommendations = recommend(methods, request.project, request.dataset)
@@ -255,6 +271,10 @@ class ResearchService:
             ProvenanceNote(source="datapilot", evidence=EvidenceKind.SOURCE_METADATA,
                            note="Relevance scores, method counts and recommendations are deterministic computations over that evidence."),
         ]
+        if texts:
+            provenance.append(ProvenanceNote(
+                source="open-access PDFs", evidence=EvidenceKind.PAPER_TEXT,
+                note="Methods and figures marked paper_text were matched in the first pages of the paper's own open-access text."))
         if interpretation is not None:
             provenance.append(ProvenanceNote(
                 source="gemini", evidence=EvidenceKind.AI_INFERRED,
@@ -264,7 +284,7 @@ class ResearchService:
             off_topic=off_topic, interpretation=shown,
             datapilot_summary=self._summary(selected, methods, plan), papers=selected, methods=methods,
             benchmarks=metrics, algorithm_recommendations=recommendations, ai_interpretation=interpretation,
-            gemini=gemini, limitations=self._limitations(errors, request, len(selected)) + notes, provenance=provenance)
+            gemini=gemini, limitations=self._limitations(errors, request, len(selected), len(texts)) + notes, provenance=provenance)
 
     @staticmethod
     def _apply_judgements(ranked, judged):
@@ -289,8 +309,10 @@ class ResearchService:
                 + "This is what the sources say; it is not a measurement on your dataset.")
 
     @staticmethod
-    def _limitations(errors, request: ResearchRequest, selected: int) -> list[str]:
+    def _limitations(errors, request: ResearchRequest, selected: int, full_text: int = 0) -> list[str]:
         out = [
+            (f"Evidence is the title and abstract of each paper; for {full_text} of them the first pages of the open-access full text were also read. "
+             "Methods and figures not mentioned in what was read are unknown, not absent.") if full_text else
             "Evidence is limited to the title and abstract (or snippet) a source returned: full papers were not opened, so "
             "methods and figures not mentioned there are unknown, not absent.",
             "Authors, years and citation counts appear only where a scholarly index (OpenAlex, arXiv, Crossref) supplied them.",

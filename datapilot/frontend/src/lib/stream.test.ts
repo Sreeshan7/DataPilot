@@ -38,3 +38,28 @@ describe("createPacer", () => {
     expect(seen).toEqual([1, 2]);
   });
 });
+
+import { applyProgress } from "./live";
+
+describe("applyProgress", () => {
+  const plan = { type: "plan" as const, steps: [{ id: "a", label: "A" }, { id: "b", label: "B" }, { id: "c", label: "C" }] };
+  it("plans waiting steps and updates them as the server reports", () => {
+    let s = applyProgress([], plan);
+    expect(s.map((x) => x.state)).toEqual(["pending", "pending", "pending"]);
+    s = applyProgress(s, { type: "step", id: "a", state: "running" });
+    s = applyProgress(s, { type: "step", id: "a", state: "done", detail: "5 rows" });
+    expect(s[0]).toMatchObject({ id: "a", state: "done", detail: "5 rows" });
+  });
+  it("inserts a stage the plan could not know before the first waiting one", () => {
+    let s = applyProgress([], plan);
+    s = applyProgress(s, { type: "step", id: "a", state: "done" });
+    s = applyProgress(s, { type: "step", id: "source-kaggle", state: "running", label: "Searching kaggle" });
+    expect(s.map((x) => x.id)).toEqual(["a", "source-kaggle", "b", "c"]);
+    expect(s[1].label).toBe("Searching kaggle");
+  });
+  it("keeps already-reported steps when the plan arrives late", () => {
+    let s = applyProgress([], { type: "step", id: "route", state: "done", label: "Understanding your request" });
+    s = applyProgress(s, plan);
+    expect(s.map((x) => x.id)).toEqual(["route", "a", "b", "c"]);
+  });
+});

@@ -273,20 +273,33 @@ class TestCardAndPaperSignals:
         assert card.outcome == "traffic volume" and card.task == "regression"
         assert card.dataset_check.status == "mismatch" and card.dataset_check.source == "ai_inferred"
 
-    def test_an_ambiguous_question_is_asked_once_not_guessed(self):
+    def sales_request(self, **options):
+        return ResearchRequest.model_validate({"project": {"description": "predict sales"}, "options": options})
+
+    def test_a_bare_ambiguous_question_is_asked_once_not_guessed(self):
         ask = {"question": "Which problem do you mean?", "options": ["Demand forecasting", "Customer churn"]}
-        writer = JsonWriter([self.card_reply(clarification=ask)])
+        writer = JsonWriter([self.card_reply(clarification=ask, core_terms=[{"term": "sales", "synonyms": []}], context_terms=[])])
         provider = FakeProvider(TRAFFIC_HITS)
-        body = asyncio.run(ResearchService(settings(), provider, writer).discover(traffic_request()))
+        body = asyncio.run(ResearchService(settings(), provider, writer).discover(self.sales_request()))
         assert body.status is ResearchStatus.NEEDS_CLARIFICATION and body.message == "Which problem do you mean?"
         assert body.interpretation.options == ["Demand forecasting", "Customer churn"]
         assert provider.calls == []  # nothing was searched before the user answered
 
+    def test_a_specific_question_is_never_asked_about_even_if_the_ai_wants_to(self):
+        ask = {"question": "Which problem do you mean?", "options": ["A", "B"]}
+        for request in (traffic_request(), ResearchRequest.model_validate({
+                "project": {"description": "predict sales", "target": "units"}, "options": {}}),
+                ResearchRequest.model_validate({"project": {"description": "air quality prediction"}, "options": {}})):
+            writer = JsonWriter([self.card_reply(clarification=ask), json.dumps({"scores": []})])
+            body = asyncio.run(ResearchService(settings(), FakeProvider(TRAFFIC_HITS), writer).discover(request))
+            assert body.status is not ResearchStatus.NEEDS_CLARIFICATION
+
     def test_a_confirmed_reading_is_not_asked_about_again(self):
         ask = {"question": "Which problem do you mean?", "options": ["A reading", "Another reading"]}
-        writer = JsonWriter([self.card_reply(clarification=ask), json.dumps({"scores": []})])
-        body = run(traffic_request(confirmed=True), writer)
-        assert body.status is ResearchStatus.SUCCESS
+        writer = JsonWriter([self.card_reply(clarification=ask, core_terms=[{"term": "sales", "synonyms": []}], context_terms=[]),
+                             json.dumps({"scores": []})])
+        body = asyncio.run(ResearchService(settings(), FakeProvider(TRAFFIC_HITS), writer).discover(self.sales_request(confirmed=True)))
+        assert body.status is not ResearchStatus.NEEDS_CLARIFICATION
 
     def test_a_bad_card_is_ignored(self):
         junk = self.card_reply(task="astrology", clarification={"question": "see http://x.test", "options": ["a", "b"]},

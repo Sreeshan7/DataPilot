@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from typing import Optional
 
 from app.schemas.research import EvidenceKind, MethodSupport, Paper, ReportedMetric
 
@@ -89,29 +90,44 @@ def aggregate_methods(papers: list[Paper]) -> list[MethodSupport]:
     ]
 
 
-def extract_metrics(papers: list[Paper]) -> list[ReportedMetric]:
+MAX_METRICS_PER_PAPER = 4
+
+
+def _metrics_in(paper: Paper, text: str, kind: EvidenceKind) -> list[ReportedMetric]:
+    out: list[ReportedMetric] = []
+    for match in _METRIC.finditer(text):
+        value = match.group("value").replace(" ", "")
+        if not re.search(r"[%.]", value) and float(value) > 100:
+            continue
+        window = text[max(0, match.start() - 120): match.end() + 120]
+        methods = methods_in(window)
+        context = _CONTEXT.search(text)
+        where = "in its abstract" if kind is EvidenceKind.WEB_VERIFIED else "in the paper's own text"
+        out.append(ReportedMetric(
+            metric=_METRIC_NAMES.get(match.group("name").lower(), match.group("name")), value=value,
+            context=context.group("c") if context else None, method=methods[0] if methods else None,
+            paper_id=paper.id, paper_title=paper.title, url=paper.url, evidence=kind,
+            statement=f"Reported {where}, in the source's own experimental setting; not a prediction for your dataset."))
+    return out
+
+
+def extract_metrics(papers: list[Paper], texts: Optional[dict[str, str]] = None) -> list[ReportedMetric]:
+    """Figures a source reports. Abstract matches come first; for papers whose full text was read, matches from the
+    paper's own text follow (evidence ``paper_text``). At most ``MAX_METRICS_PER_PAPER`` per paper."""
+    texts = texts or {}
     out: list[ReportedMetric] = []
     for paper in papers:
-        text = paper.abstract_snippet or ""
-        if not text:
-            continue
-        for match in _METRIC.finditer(text):
-            value = match.group("value").replace(" ", "")
-            if not re.search(r"[%.]", value) and float(value) > 100:
-                continue
-            window = text[max(0, match.start() - 120): match.end() + 120]
-            methods = methods_in(window)
-            context = _CONTEXT.search(text)
-            out.append(ReportedMetric(
-                metric=_METRIC_NAMES.get(match.group("name").lower(), match.group("name")), value=value,
-                context=context.group("c") if context else None, method=methods[0] if methods else None,
-                paper_id=paper.id, paper_title=paper.title, url=paper.url,
-                statement=f"Reported by the source in its own experimental setting; not a prediction for your dataset."))
+        for text, kind in ((paper.abstract_snippet or "", EvidenceKind.WEB_VERIFIED), (texts.get(paper.id, ""), EvidenceKind.PAPER_TEXT)):
+            if text:
+                out.extend(_metrics_in(paper, text, kind))
     seen: set[tuple] = set()
-    unique = []
+    unique: list[ReportedMetric] = []
+    per_paper: dict[str, int] = {}
     for metric in out:
         key = (metric.paper_id, metric.metric, metric.value)
-        if key not in seen:
-            seen.add(key)
-            unique.append(metric)
+        if key in seen or per_paper.get(metric.paper_id, 0) >= MAX_METRICS_PER_PAPER:
+            continue
+        seen.add(key)
+        per_paper[metric.paper_id] = per_paper.get(metric.paper_id, 0) + 1
+        unique.append(metric)
     return unique

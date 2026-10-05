@@ -58,8 +58,10 @@ Reply with ONE JSON object only:
  "queries": ["<up to 4 short web/scholarly search queries>"],
  "clarification": null or {"question": "<ONE short question>", "options": ["<2-4 distinct readings>"]},
  "dataset_check": null or {"status": "consistent|mismatch|unknown", "note": "<max 25 words>"}}
-Ask a clarification ONLY when the subject or outcome is genuinely ambiguous and the columns do not settle it
-(for example "predict sales" could be demand forecasting or customer churn); otherwise null.
+clarification is almost always null. Ask ONLY when the text is a bare, one-word-subject request whose meaning could
+be two quite different projects ("predict sales" could be demand forecasting or customer churn). Never ask when the
+text names a specific subject, setting or conditions ("predict traffic during bad weather", "diabetes risk from
+patient data", "air quality prediction", "sentiment analysis of reviews", "movie recommendation" are all clear).
 dataset_check compares the user's stated problem with the dataset columns (only if columns are given): do they support it?
 Core terms name the OUTCOME or SUBJECT being studied (e.g. student, academic, performance). Input features and dataset columns (attendance, marks...) are NOT core terms; at most mention them as context.
 At most 4 core terms, 6 synonyms each. Only words that appear in or are direct synonyms of the user's subject."""
