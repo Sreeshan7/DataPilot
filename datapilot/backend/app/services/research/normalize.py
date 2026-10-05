@@ -86,6 +86,11 @@ class _Entry:
     queries: list[str] = field(default_factory=list)
     doi: Optional[str] = None
     arxiv_year: Optional[int] = None
+    authors: Optional[tuple[str, ...]] = None
+    year: Optional[int] = None
+    venue: Optional[str] = None
+    citations: Optional[int] = None
+    structured: bool = False  # some provider returned real metadata for it
 
 
 def _doi_of(hit: SearchHit) -> Optional[str]:
@@ -110,10 +115,10 @@ def normalise(hits: list[SearchHit]) -> tuple[list[Paper], int, int]:
     alias: dict[str, str] = {}  # secondary key -> primary key
     rejected = merged = 0
     for hit in hits:
-        if not is_academic(hit.url):
+        if not hit.academic and not is_academic(hit.url):
             rejected += 1
             continue
-        doi = _doi_of(hit)
+        doi = hit.doi.lower() if hit.doi else _doi_of(hit)
         keys = [f"doi:{doi}"] if doi else []
         keys.append(f"url:{canonical_url(hit.url)}")
         title_key = normalise_title(_clean_title(hit.title))
@@ -127,6 +132,16 @@ def normalise(hits: list[SearchHit]) -> tuple[list[Paper], int, int]:
             merged += 1
             entry = entries[primary]
             entry.doi = entry.doi or doi
+        entry = entries[primary]
+        # Keep the richest metadata any provider returned for the same paper (never invent any).
+        entry.authors = entry.authors or hit.authors
+        entry.year = entry.year or hit.year
+        entry.venue = entry.venue or hit.venue
+        if hit.citations is not None:
+            entry.citations = max(entry.citations or 0, hit.citations)
+        entry.structured = entry.structured or hit.academic
+        if hit.academic and entry.url.startswith("https://doi.org") is False and hit.url.startswith("https://doi.org"):
+            entry.url = hit.url  # prefer the stable DOI link
         for k in keys:
             alias.setdefault(k, primary)
         entry = entries[primary]
@@ -141,7 +156,9 @@ def normalise(hits: list[SearchHit]) -> tuple[list[Paper], int, int]:
         snippet = max(entry.snippets, key=len) if entry.snippets else None
         text = f"{entry.title} {snippet or ''}"
         year, year_evidence = None, EvidenceKind.UNKNOWN
-        if entry.arxiv_year:
+        if entry.year:
+            year, year_evidence = entry.year, EvidenceKind.SOURCE_METADATA
+        elif entry.arxiv_year:
             year, year_evidence = entry.arxiv_year, EvidenceKind.SOURCE_METADATA
         else:
             years = [int(y) for y in _YEAR.findall(text)]
@@ -149,9 +166,10 @@ def normalise(hits: list[SearchHit]) -> tuple[list[Paper], int, int]:
                 year, year_evidence = max(years), EvidenceKind.WEB_VERIFIED
         papers.append(Paper(
             id=hashlib.sha1(key.encode()).hexdigest()[:12], title=entry.title, url=entry.url, source=host,
-            venue=venue_for(host), publication_year=year, year_evidence=year_evidence, doi=entry.doi,
+            venue=entry.venue or venue_for(host), authors=list(entry.authors) if entry.authors else None,
+            publication_year=year, year_evidence=year_evidence, doi=entry.doi, citation_count=entry.citations,
             abstract_snippet=snippet, matched_queries=entry.queries,
             retrieval_status="snippet_only" if snippet else "title_only",
-            evidence=[EvidenceKind.WEB_VERIFIED] + ([EvidenceKind.SOURCE_METADATA] if entry.arxiv_year or entry.doi else []),
+            evidence=[EvidenceKind.WEB_VERIFIED] + ([EvidenceKind.SOURCE_METADATA] if entry.structured or entry.arxiv_year or entry.doi else []),
         ))
     return papers, rejected, merged

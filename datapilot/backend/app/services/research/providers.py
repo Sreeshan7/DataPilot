@@ -35,11 +35,21 @@ _USER_AGENT = "Mozilla/5.0 (compatible; DataPilotResearch/1.0; +local)"
 
 @dataclass(frozen=True)
 class SearchHit:
+    """One result. The structured fields are filled only by providers that actually return them (scholarly
+    APIs); a plain web-search hit carries just a title, URL and snippet, and the rest stays None."""
+
     title: str
     url: str
     snippet: str
     query: str
     provider: str
+    authors: Optional[tuple[str, ...]] = None
+    year: Optional[int] = None
+    doi: Optional[str] = None
+    venue: Optional[str] = None
+    citations: Optional[int] = None
+    #: True when the provider is itself a scholarly index, so the host allowlist is not needed.
+    academic: bool = False
 
 
 class ProviderError(Exception):
@@ -98,6 +108,8 @@ def parse_results(markup: str, query: str, provider: str, limit: int) -> list[Se
 
 class WebSearchProvider:
     name = "web_search"
+    fallback = True
+    delay = 1.0
 
     def __init__(self, settings: Settings, client: Optional[httpx.AsyncClient] = None) -> None:
         self._settings = settings

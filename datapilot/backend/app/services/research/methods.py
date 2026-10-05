@@ -57,7 +57,7 @@ _METRIC_NAMES = {
 }
 _METRIC = re.compile(
     r"\b(?P<name>accuracy|f1[- ]?score|f1|roc-?auc|auc|rmse|mae|precision|recall|r2|r-squared)\b"
-    r"(?:\s+(?:of|was|is|reached|achieved|=|:|at|up to))?\s*[:=]?\s*(?P<value>\d{1,3}(?:\.\d+)?\s?%?|0\.\d+)",
+    r"(?:\s+(?:of|was|is|reached|achieved|=|:|at|up to))?\s*[:=]?\s*(?P<value>\d{1,3}(?:\.\d+)?\s?%|0\.\d+)",
     re.I)
 _CONTEXT = re.compile(r"\bon (?:the |a |an )?(?P<c>[A-Z][\w\- ]{2,50}? (?:dataset|data set|data))\b")
 
