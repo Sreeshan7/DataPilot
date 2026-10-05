@@ -20,14 +20,26 @@ from app.core.logging_config import get_logger
 from app.schemas.analysis_response import DatasetAnalysisResponse
 from app.schemas.project import ErrorCode, ErrorDetail, ErrorResponse
 from app.services.dataset_analysis import narrative
+from app.services.routing import transitions
 from app.services.dataset_analysis.errors import AnalysisError
 from app.services.dataset_analysis.service import AnalysisRequest, DatasetAnalysisService
+from app.services.project_intelligence import ProjectIntelligenceService
 
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/datasets", tags=["Dataset Analysis (User B)"])
 
 _service: Optional[DatasetAnalysisService] = None
+
+
+_intelligence: Optional[ProjectIntelligenceService] = None
+
+
+def get_intelligence_service() -> ProjectIntelligenceService:
+    global _intelligence
+    if _intelligence is None:
+        _intelligence = ProjectIntelligenceService()
+    return _intelligence
 
 
 def get_analysis_service() -> DatasetAnalysisService:
@@ -57,7 +69,14 @@ def internal_error(request_id: str) -> HTTPException:
     )
 
 
-async def execute_analysis(request_id: str, request: AnalysisRequest) -> DatasetAnalysisResponse:
+async def execute_analysis(
+    request_id: str,
+    request: AnalysisRequest,
+    *,
+    goal: Optional[str] = None,
+    use_ai: bool = False,
+    include_project_intelligence: bool = True,
+) -> DatasetAnalysisResponse:
     """Run the User B workflow and package it (also used by /assist). Does not close the upload."""
     try:
         outcome = await get_analysis_service().analyze(request)
@@ -70,13 +89,27 @@ async def execute_analysis(request_id: str, request: AnalysisRequest) -> Dataset
         raise internal_error(request_id) from exc
 
     analysis = outcome.analysis
+    intelligence = None
+    notices: list[str] = []
+    if include_project_intelligence:
+        try:
+            intelligence = await get_intelligence_service().build(outcome, goal=goal, use_ai=use_ai)
+        except Exception as exc:  # an enrichment must never fail the analysis the user asked for
+            logger.error("[%s] Project intelligence failed: %s", request_id, type(exc).__name__)
+            notices.append("Project intelligence could not be produced for this dataset; the analysis above is complete.")
+    actions = narrative.next_actions(analysis)
+    if (intelligence is not None and intelligence.compatibility is not None
+            and intelligence.compatibility.suggests_alternative_dataset and goal):
+        actions.append(transitions.alternative_dataset_action(goal, intelligence.compatibility))
     return DatasetAnalysisResponse(
         request_id=request_id,
         headline=narrative.headline(analysis),
         evidence_statement=narrative.evidence_statement(analysis),
         analysis=analysis,
+        project_intelligence=intelligence,
         recommended_next_step=narrative.next_step(analysis),
-        next_actions=narrative.next_actions(analysis),
+        next_actions=actions,
+        notices=notices + (intelligence.warnings if intelligence else []),
     )
 
 
@@ -115,6 +148,13 @@ async def analyze_dataset(
     source: Optional[str] = Form(None, max_length=50, description="kaggle | huggingface | uci | openml"),
     target: Optional[str] = Form(None, max_length=300, description="The column to treat as the target."),
     sheet_name: Optional[str] = Form(None, max_length=200),
+    project_goal: Optional[str] = Form(
+        None, max_length=2000,
+        description="What you want to build. When given, the response says whether this dataset fits it."),
+    use_ai: bool = Form(
+        False, description="Let Gemini rephrase the project ideas (prose only; never changes a column)."),
+    include_project_intelligence: bool = Form(
+        True, description="Set false to skip feature roles, project ideas and model suggestions."),
 ) -> DatasetAnalysisResponse:
     request_id = str(uuid.uuid4())
     # Only metadata is logged: never a file name's contents, a cell, or the user's message.
@@ -131,7 +171,9 @@ async def analyze_dataset(
         sheet_name=sheet_name,
     )
     try:
-        return await execute_analysis(request_id, request)
+        return await execute_analysis(
+            request_id, request, goal=project_goal, use_ai=use_ai,
+            include_project_intelligence=include_project_intelligence)
     finally:
         if file is not None:
             await file.close()

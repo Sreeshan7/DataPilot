@@ -40,6 +40,16 @@ def after_analysis(
     )]
 
 
+def alternative_dataset_action(goal: str, compatibility) -> NextAction:
+    """User B -> User A because the dataset the user brought contradicts their project."""
+    return NextAction(
+        action="FIND_ALTERNATIVE_DATASET",
+        description="This dataset does not fit your project: find datasets that do. " + compatibility.summary,
+        endpoint=RECOMMEND_ENDPOINT,
+        payload={"description": goal},
+    )
+
+
 def after_discovery(candidates: list[DatasetCandidate]) -> list[NextAction]:
     """User A -> User B: analyse a recommended dataset, or upload the one the user picks."""
     actions: list[NextAction] = []

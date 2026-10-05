@@ -64,6 +64,7 @@ async def assist(
     target: Optional[str] = Form(None, max_length=300),
     sheet_name: Optional[str] = Form(None, max_length=200),
     limit: int = Form(10, ge=1, le=50, description="Recommendations to return when finding a dataset."),
+    use_ai: bool = Form(False, description="Let Gemini rephrase project ideas (prose only)."),
 ) -> AssistResponse:
     request_id = str(uuid.uuid4())
     has_file = file is not None and bool(file.filename)
@@ -112,10 +113,12 @@ async def assist(
                 target_hint=target,
                 sheet_name=sheet_name,
             )
-            analysis = await execute_analysis(request_id, analysis_request)
-            actions = list(analysis.next_actions) + transitions.after_analysis(
-                analysis.analysis, routing, project_goal
-            )
+            analysis = await execute_analysis(
+                request_id, analysis_request, goal=project_goal, use_ai=use_ai)
+            actions = list(analysis.next_actions)
+            have = {a.action for a in actions}
+            actions += [a for a in transitions.after_analysis(analysis.analysis, routing, project_goal)
+                        if a.action not in have]
             return AssistResponse(
                 request_id=request_id, status=AssistStatus.COMPLETED, journey=routing.intent, routing=routing,
                 headline=analysis.headline, analysis=analysis, next_actions=actions,
