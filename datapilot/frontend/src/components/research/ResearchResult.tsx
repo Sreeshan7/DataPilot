@@ -36,6 +36,8 @@ export function PaperCard({ paper, index }: { paper: Paper; index: number }) {
       </p>
       <div className="mt-3 flex flex-wrap items-center gap-1.5">
         <Badge tone="accent">Relevance {Math.round(paper.relevance_score)}</Badge>
+        {paper.paper_type && <Badge tone={paper.paper_type === "survey" ? "info" : "neutral"} title="Read from the title and abstract wording">{paper.paper_type === "survey" ? "Survey" : paper.paper_type === "applied" ? "Applied study" : "Method paper"}</Badge>}
+        {paper.citation_count ? <Badge title="Citation count reported by the index">{paper.citation_count.toLocaleString()} citations</Badge> : null}
         {paper.ai_relevance != null && <Badge tone={paper.ai_relevance >= 3 ? "success" : "info"} title="An AI model's judgement of topical fit, not a fact about the paper"><Sparkles className="size-3" aria-hidden />AI fit {paper.ai_relevance}/3</Badge>}
         {(paper.matched_terms ?? []).map((t) => <Badge key={`t-${t}`} tone="neutral">mentions {t}</Badge>)}
         {paper.methods.map((m) => <Badge key={m}>{m}</Badge>)}
@@ -107,11 +109,22 @@ function Understood({ data }: { data: ResearchResponse }) {
       {i.context_terms.length > 0 && <><span>in the context of</span>{i.context_terms.map((t) => <Badge key={t}>{t}</Badge>)}</>}
       {fixes.length > 0 && <span className="text-subtle">· read “{fixes[0][0]}” as “{fixes[0][1]}”{fixes.length > 1 ? ` (+${fixes.length - 1} more)` : ""}</span>}
       {i.ai_assisted && <Badge tone="accent"><Sparkles className="size-3" aria-hidden />AI helped interpret</Badge>}
+      {(i.outcome || i.task) && (
+        <span className="basis-full text-subtle">
+          {i.outcome ? <>Predicting <strong className="font-medium text-foreground/90">{i.outcome}</strong></> : null}
+          {i.outcome && i.task ? " · " : null}{i.task ? <>task: {i.task}</> : null}
+        </span>
+      )}
+      {i.dataset_check && i.dataset_check.status !== "unknown" && (
+        <span className={`basis-full rounded-lg border px-3 py-2 ${i.dataset_check.status === "mismatch" ? "border-warning/30 bg-warning/10 text-warning" : "border-success/30 bg-success/10 text-success"}`}>
+          {i.dataset_check.status === "mismatch" ? "Check this: " : "Matches your data: "}{i.dataset_check.note}{i.dataset_check.source === "ai_inferred" ? " (AI-read)" : ""}
+        </span>
+      )}
     </div>
   );
 }
 
-export function ResearchResult({ data, onRetry }: { data: ResearchResponse; onRetry?: () => void }) {
+export function ResearchResult({ data, onRetry, onRefine, busy }: { data: ResearchResponse; onRetry?: () => void; onRefine?: (problem: string) => void; busy?: boolean }) {
   if (data.status !== "success") {
     const copy: Record<string, string> = {
       needs_clarification: "I need a bit more about the problem before I can research it.",
@@ -123,6 +136,14 @@ export function ResearchResult({ data, onRetry }: { data: ResearchResponse; onRe
         <div className="rounded-xl border border-border bg-surface p-5">
           <p className="text-[14.5px] font-medium">{copy[data.status] ?? "Research couldn't be completed."}</p>
           {data.message && <p className="mt-1.5 text-[13.5px] leading-6 text-muted-foreground">{data.message}</p>}
+          {data.status === "needs_clarification" && (data.interpretation?.options ?? []).length > 0 && onRefine && (
+            <div className="mt-4 flex flex-wrap gap-2.5" role="group" aria-label="Pick what you mean">
+              {(data.interpretation?.options ?? []).map((o) => (
+                <button key={o} type="button" disabled={busy} onClick={() => onRefine(o)}
+                  className="rounded-full border border-border bg-raised px-4 py-2 text-[13.5px] transition-colors hover:border-accent/50 hover:bg-muted disabled:opacity-50">{o}</button>
+              ))}
+            </div>
+          )}
           {onRetry && data.status !== "needs_clarification" && <button type="button" onClick={onRetry} className="mt-3 rounded-lg border border-border bg-raised px-3 py-1.5 text-sm hover:bg-muted">Try again</button>}
         </div>
         {data.limitations.length > 0 && <p className="text-xs leading-5 text-subtle">{data.limitations[0]}</p>}

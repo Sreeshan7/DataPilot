@@ -30,6 +30,7 @@ from app.schemas.project_intelligence import (
     DatasetMLUnderstanding,
     Difficulty,
     FeatureIntelligence,
+    Feasibility,
     FeatureRole,
     IdeaSource,
     ProjectIdea,
@@ -130,6 +131,41 @@ def _difficulty(
     points += has_text
     points += many_classes
     return Difficulty.BEGINNER if points <= 1 else Difficulty.INTERMEDIATE if points <= 3 else Difficulty.ADVANCED
+
+
+def _feasibility(shape: DataShape, target: Optional[str], task: MLTask, intel: FeatureIntelligence, *,
+                 imbalanced: bool, n_features: int) -> Feasibility:
+    """A plain-language rating from the profile. It says how workable the data looks, not what accuracy to expect."""
+    good, bad = [], []
+    if shape.n_rows is None:
+        bad.append("the number of rows is unknown")
+    elif shape.n_rows >= 5000:
+        good.append(f"{shape.n_rows:,} rows is plenty for a first model")
+    elif shape.n_rows >= 500:
+        good.append(f"{shape.n_rows:,} rows is workable")
+    else:
+        bad.append(f"only {shape.n_rows:,} rows, so results will be noisy")
+    column = shape.column(target) if target else None
+    if column is not None and column.missing_pct and column.missing_pct > 20:
+        bad.append(f"the target is missing in {column.missing_pct:.0f}% of rows")
+    if imbalanced:
+        bad.append("the classes are imbalanced")
+    if n_features >= 3:
+        good.append(f"{n_features} usable input columns")
+    elif n_features:
+        bad.append("very few usable input columns")
+    if not shape.parsed:
+        bad.append("only the published schema is known: no rows were read")
+    elif intel.available and intel.target == target and getattr(intel, "method", None) is not None:
+        if getattr(intel.method, "reliable", False):
+            good.append("a quick check found real signal in the inputs")
+        else:
+            bad.append("a quick check found only weak signal in the inputs")
+    if task is MLTask.TIME_SERIES_FORECASTING:
+        bad.append("forecasting needs time-aware validation")
+    score = len(good) - 1.5 * len(bad)
+    level = "high" if score >= 2 and not bad else "low" if score < 0 else "medium"
+    return Feasibility(level=level, reasons=(good + bad)[:5])
 
 
 def _challenges(shape: DataShape, target: Optional[str], intel: FeatureIntelligence) -> list[str]:
@@ -279,6 +315,8 @@ def _supervised_idea(
         limitations=_limitations(analysis, intel, target),
         evidence_level=basis,
         state=_idea_state(target),
+        feasibility=_feasibility(shape, target.column, task, intel, imbalanced=imbalanced,
+                                 n_features=len(required) + len(optional)),
     )
 
 

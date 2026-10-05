@@ -18,7 +18,7 @@ from its actual data. The rules these models enforce, rather than merely documen
 from __future__ import annotations
 
 from enum import Enum
-from typing import Optional
+from typing import Any, Optional
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -212,6 +212,13 @@ class IdeaSource(str, Enum):
     GEMINI_ENHANCED = "gemini_enhanced"
 
 
+class Feasibility(BaseModel):
+    """How realistic the idea looks on THIS data. Computed from the profile, never promised as an outcome."""
+
+    level: str = Field(..., description="high | medium | low")
+    reasons: list[str] = Field(default_factory=list)
+
+
 class ProjectIdea(BaseModel):
     id: str
     title: str = Field(..., min_length=1)
@@ -231,6 +238,9 @@ class ProjectIdea(BaseModel):
     evidence_level: EvidenceLevel
     source: IdeaSource = IdeaSource.DETERMINISTIC
     state: CandidateState = CandidateState.POSSIBLE
+    feasibility: Optional[Feasibility] = None
+    research_request: Optional[dict[str, Any]] = Field(
+        None, description="A ready-made POST /research/stream body for this specific project (never run automatically).")
 
     @model_validator(mode="after")
     def features_must_not_include_the_target(self) -> "ProjectIdea":

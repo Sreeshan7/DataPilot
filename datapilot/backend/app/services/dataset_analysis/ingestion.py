@@ -598,14 +598,30 @@ def _read_sheet(
 
     rows = sheet.iter_rows(values_only=True)
     first: Optional[tuple[Any, ...]] = None
+    title: Optional[tuple[Any, ...]] = None
+    skipped_title = False
+    filled = lambda r: sum(1 for c in r if c is not None and str(c).strip())  # noqa: E731
     for row in rows:
-        if any(c is not None and str(c).strip() for c in row):
-            first = row
+        count = filled(row)
+        if not count:
+            continue
+        if title is None and count == 1:
+            title = row  # maybe a report title above the real header: decide once the next row is seen
+            continue
+        if title is not None and count < 2:
+            rows = chain([row], rows)  # not a title after all (a single-column sheet): keep it as the header
+            first = title
             break
+        first, skipped_title = row, title is not None
+        break
+    if first is None:
+        first = title  # a one-cell sheet
     if first is None:
         raise IngestionError(ErrorCode.FILE_EMPTY, "The selected sheet is empty.")
 
     warnings: list[str] = []
+    if skipped_title:
+        warnings.append("A title row above the header was skipped; the first row with several columns was used as the header.")
     has_header = _excel_header_decision(first)
     width = len(first)
     while width and (first[width - 1] is None or (isinstance(first[width - 1], str) and not first[width - 1].strip())) and has_header:

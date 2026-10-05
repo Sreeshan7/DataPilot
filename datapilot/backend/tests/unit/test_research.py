@@ -39,7 +39,7 @@ from tests.unit.pi_helpers import SETTINGS
 
 
 def settings(**kw) -> Settings:
-    values = dict(gemini_api_key="", kaggle_api_token="", app_env="testing", research_query_delay_seconds=0,
+    values = dict(gemini_api_key="", gemini_api_key_2="", kaggle_api_token="", app_env="testing", research_query_delay_seconds=0,
                   research_rate_limit_retry_seconds=0)
     values.update(kw)
     return Settings(**values)

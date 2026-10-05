@@ -330,3 +330,21 @@ both benchmark scripts (metrics above must not move unexpectedly); for registry/
   unless a listener is attached, so `/discover` is unchanged. The UI shows each real stage (pacer keeps each on screen
   >= ~0.4s, never drops or invents one) and falls back to `/discover` against an older server.
 - Not yet streamed: `/assist` (discovery and file analysis still show the outline until the single answer arrives).
+
+## Problem card, project chain, file understanding (2026-10-05)
+- **Problem card:** the AI question step now returns subject, outcome, task, setting, an optional single clarifying
+  question (with 2-4 readings) and a dataset cross-check; all validated (task enum, no links, columns only). Ambiguity
+  returns `needs_clarification` BEFORE any search; `options.confirmed` skips asking again. A deterministic check also
+  compares the stated target with the dataset columns (`interpretation.dataset_check`, source `datapilot` vs `ai_inferred`).
+- **Ranking:** + outcome (5), + citations (5, log-scaled, unknown earns 0), source 5; paper type
+  (survey/applied/method, wording heuristic); prefix matching in the gate ("telecom" finds "telecommunications");
+  Semantic Scholar added as a primary provider (skipped quietly when rate limited).
+- **Benchmark:** `tests/unit/test_research_benchmark.py`: 10 labelled problems, precision 1.0 / recall 1.0 on the fixtures
+  (synthetic candidates written for the test; they pin the parser + gate + ranking, they do not claim real-world precision).
+- **File understanding:** goal-aware target pick (`dataset_analysis/ai_target.py`): one small Gemini call over column
+  NAMES and TYPES only, only when no confident target exists; result is a POSSIBLE target with ai_inferred evidence,
+  never "user specified". Excel title rows above the header are skipped (and reported). Each project idea now has a
+  `feasibility` rating (from rows, missing target, imbalance, signal) and a ready-made `research_request`.
+- **UI:** idea cards show feasibility and a "Research this project" button; research shows the card (outcome, task,
+  dataset check) and clickable readings when a question is ambiguous.
+- Tests: backend 2257 passed, frontend 40.

@@ -164,4 +164,4 @@ class TestTieredSearch:
 
     def test_default_wiring_is_scholarly_first_with_web_as_fallback(self):
         names = [(p.name, getattr(p, "fallback", False)) for p in ResearchService(settings())._providers]
-        assert names == [("openalex", False), ("arxiv", False), ("crossref", False), ("web_search", True)]
+        assert names == [("openalex", False), ("semanticscholar", False), ("arxiv", False), ("crossref", False), ("web_search", True)]

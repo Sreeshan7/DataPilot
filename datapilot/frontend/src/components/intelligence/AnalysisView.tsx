@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { Badge, type Tone } from "@/components/ui/badge";
 import { Disclosure } from "@/components/ui/disclosure";
 import { bytes, compactNumber, hostOf, humanize, percent, plural, safeUrl } from "@/lib/format";
-import type { DatasetAnalysisResponse, QualityFinding } from "@/types";
+import type { DatasetAnalysisResponse, QualityFinding, ResearchRequest } from "@/types";
 import { FeaturePanel } from "./FeaturePanel";
 import { CompatibilityPanel, IdeasPanel, ModelsPanel } from "./IdeasPanel";
 
@@ -86,7 +86,7 @@ function WebSources({ a }: { a: DatasetAnalysisResponse["analysis"] }) {
   );
 }
 
-export function AnalysisView({ data }: { data: DatasetAnalysisResponse }) {
+export function AnalysisView({ data, onResearch, busy }: { data: DatasetAnalysisResponse; onResearch?: (request: ResearchRequest, label: string) => void; busy?: boolean }) {
   const a = data.analysis;
   const pi = data.project_intelligence;
   const parsed = a.mode === "file_parsed";
@@ -155,7 +155,7 @@ export function AnalysisView({ data }: { data: DatasetAnalysisResponse }) {
 
       {pi && (
         <Section title="Project ideas" hint="Grounded in your actual columns.">
-          <IdeasPanel ideas={pi.project_ideas} />
+          <IdeasPanel ideas={pi.project_ideas} onResearch={onResearch} busy={busy} />
         </Section>
       )}
 

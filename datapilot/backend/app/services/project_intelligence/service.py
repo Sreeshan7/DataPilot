@@ -84,6 +84,9 @@ class ProjectIntelligenceService:
         ideas, gemini, gemini_warnings = await enhance_ideas(
             ideas, shape, goal, writer, self._settings, requested=use_ai)
         ideas = validate_ideas(ideas, shape.names)  # the guard runs again on whatever came back
+        from app.services.research.offer import request_for_idea
+
+        ideas = [i.model_copy(update={"research_request": request_for_idea(i, analysis, goal)}) for i in ideas]
         warnings.extend(gemini_warnings)
 
         compatibility = assess_compatibility(goal, analysis, understanding, shape) if goal else None

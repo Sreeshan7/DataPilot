@@ -14,6 +14,7 @@ from typing import Optional
 from app.core.config import Settings, get_settings
 from app.core.logging_config import get_logger
 from app.schemas.research import (
+    DatasetCheck,
     EvidenceKind,
     GeminiResearchUsage,
     Interpretation,
@@ -26,10 +27,10 @@ from app.schemas.research import (
 from app.services.research import methods as method_tools
 from app.services.research.normalize import normalise
 from app.services.research.providers import ProviderError, ResearchProvider, SearchHit, WebSearchProvider
-from app.services.research.scholarly import ArxivProvider, CrossrefProvider, OpenAlexProvider
+from app.services.research.scholarly import ArxivProvider, CrossrefProvider, OpenAlexProvider, SemanticScholarProvider
 from app.services.research import assist
 from app.services.research.progress import Progress
-from app.services.research.queries import QueryPlan, build_queries, understand
+from app.services.research.queries import QueryPlan, build_queries, check_dataset, understand
 from app.services.research.ranking import rank
 from app.services.research.recommend import recommend
 from app.services.research.synthesis import ResearchWriter, synthesise
@@ -59,8 +60,8 @@ class ResearchService:
         else:
             web = WebSearchProvider(self._settings)
             web.delay = self._settings.research_query_delay_seconds
-            self._providers = [OpenAlexProvider(self._settings), ArxivProvider(self._settings),
-                               CrossrefProvider(self._settings), web]
+            self._providers = [OpenAlexProvider(self._settings), SemanticScholarProvider(self._settings),
+                               ArxivProvider(self._settings), CrossrefProvider(self._settings), web]
         self._writer = writer
 
     def _research_writer(self) -> Optional[ResearchWriter]:
@@ -129,7 +130,7 @@ class ResearchService:
         steps = [("understand", "Reading your question")]
         if can_assist:
             steps.append(("ai-question", "Asking AI for synonyms and related terms"))
-        steps += [("queries", "Building search queries"), ("search", "Searching OpenAlex, arXiv and Crossref"),
+        steps += [("queries", "Building search queries"), ("search", "Searching OpenAlex, Semantic Scholar, arXiv and Crossref"),
                   ("dedupe", "Removing duplicates and non-academic pages"),
                   ("gate", "Checking each paper is really about your subject")]
         if can_assist:
@@ -149,19 +150,31 @@ class ResearchService:
                 plan.context_terms = understood.context_terms or plan.context_terms
                 plan.problem = understood.problem
                 extra = understood.queries[:2]
+                plan.outcome, plan.task = understood.outcome, understood.task
+                plan.clarification, plan.options = understood.clarification, understood.options
+                if understood.dataset_check and understood.dataset_check[0] != "unknown":
+                    plan.dataset_check = (*understood.dataset_check, "ai_inferred")
                 assisted.append("question")
                 await pg.done("ai-question", f"{len(plan.all_core_words)} terms")
             elif why:
                 notes.append(f"AI question understanding skipped: {why}.")
                 await pg.skip("ai-question", "used the built-in reading")
         await pg.start("queries")
+        if plan.dataset_check is None or plan.dataset_check[0] != "mismatch":
+            plan.dataset_check = check_dataset(request.project, request.dataset) or plan.dataset_check
         queries, why_not = build_queries(request.project, request.dataset, s.research_max_queries, plan=plan)
         if not queries:
             return self._response(ResearchStatus.NEEDS_CLARIFICATION, why_not, [])
         queries = list(dict.fromkeys(queries[: max(1, s.research_max_queries - len(extra))] + extra))
         await pg.done("queries", f"{len(queries)} queries")
-        shown = Interpretation(problem=plan.problem, core_terms=plan.core_terms, context_terms=plan.context_terms,
-                               corrections=plan.corrections, ai_assisted=plan.ai_assisted)
+        shown = Interpretation(
+            problem=plan.problem, core_terms=plan.core_terms, context_terms=plan.context_terms,
+            corrections=plan.corrections, ai_assisted=plan.ai_assisted, outcome=plan.outcome, task=plan.task,
+            features=request.project.features[:8], options=plan.options,
+            dataset_check=DatasetCheck(status=plan.dataset_check[0], note=plan.dataset_check[1], source=plan.dataset_check[2])
+            if plan.dataset_check else None)
+        if plan.clarification and not request.options.confirmed:  # ask once instead of guessing which problem was meant
+            return self._response(ResearchStatus.NEEDS_CLARIFICATION, plan.clarification, queries, interpretation=shown)
         if not s.research_enabled:
             return self._response(ResearchStatus.SEARCH_UNAVAILABLE, "Research is turned off on this server.", queries,
                                   interpretation=shown)

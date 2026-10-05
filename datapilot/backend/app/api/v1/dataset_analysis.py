@@ -70,6 +70,22 @@ def internal_error(request_id: str) -> HTTPException:
     )
 
 
+async def _refine_target(outcome, goal: str):
+    """Goal-aware target suggestion (one small Gemini call, names and types only). Never fails the analysis."""
+    try:
+        from app.core.config import get_settings
+        from app.services.dataset_analysis.ai_target import refine_with_goal
+        from app.services.llm_service import LLMService
+
+        settings = get_settings()
+        if not settings.analysis_gemini_enabled:
+            return outcome, None
+        return await refine_with_goal(outcome, goal, settings, LLMService(settings))
+    except Exception as exc:
+        logger.error("Goal-aware target step failed: %s", type(exc).__name__)
+        return outcome, None
+
+
 async def execute_analysis(
     request_id: str,
     request: AnalysisRequest,
@@ -89,9 +105,13 @@ async def execute_analysis(
         logger.error("[%s] Unhandled dataset analysis error: %s", request_id, type(exc).__name__)
         raise internal_error(request_id) from exc
 
+    notices: list[str] = []
+    if goal and outcome.parsed is not None:
+        outcome, picked = await _refine_target(outcome, goal)
+        if picked:
+            notices.append(f"'{picked}' was suggested as the target by an AI model from your goal and the column names; confirm it.")
     analysis = outcome.analysis
     intelligence = None
-    notices: list[str] = []
     if include_project_intelligence:
         try:
             intelligence = await get_intelligence_service().build(outcome, goal=goal, use_ai=use_ai)

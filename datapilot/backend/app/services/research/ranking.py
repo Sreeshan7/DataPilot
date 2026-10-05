@@ -2,12 +2,14 @@
 
 Components and weights (sum 100):
 
-* problem 40: share of the question's core topics found in the title/snippet (title counts most)
+* problem 35: share of the question's core topics found in the title/snippet (title counts most)
+* outcome 5: the thing being predicted ("volume", "churn") appears
 * context 10: the situation words (weather, season...) found
 * task 10, domain 5, target 5: whether those terms appear
 * methods 10: names a recognised ML method
 * recency 10: newer is better, scaled over the last ten years (unknown year earns nothing, never a guess)
-* source 10: a known publisher or repository scores higher than a university page
+* citations 5: log-scaled (1,000 citations = full marks); unknown earns nothing, never a guess
+* source 5: a known publisher or repository scores higher than a university page
 
 TOPIC GATE: a paper must mention at least half of the core topics (any synonym counts) or it is dropped, whatever
 else it scores. A method paper that never mentions the subject is not about the subject.
@@ -17,6 +19,7 @@ Citation counts are never retrieved, so they play no part. Ties break on URL, so
 
 from __future__ import annotations
 
+import math
 import re
 from datetime import date
 from typing import Optional
@@ -26,6 +29,15 @@ from app.services.research.normalize import host_of, venue_for
 from app.services.research.queries import QueryPlan, task_word, understand
 
 _WORD = re.compile(r"[a-z0-9]+")
+_SURVEY = re.compile(r"\b(survey|review|systematic|state[- ]of[- ]the[- ]art|overview|meta-analysis|taxonomy|literature)\b", re.I)
+_APPLIED = re.compile(r"\b(case study|real[- ]world|deployed|deployment|we collected|collected from|field data|empirical study|applied to)\b", re.I)
+
+
+def paper_type(title: str, abstract: Optional[str]) -> str:
+    """survey / applied / method, from wording only. A heuristic label, not a claim about study design."""
+    if _SURVEY.search(title) or _SURVEY.search((abstract or "")[:300]):
+        return "survey"
+    return "applied" if _APPLIED.search(f"{title} {abstract or ''}") else "method"
 _FILLER = {"a", "an", "the", "of", "for", "and", "in", "on", "to", "using", "with", "by"}
 
 
@@ -46,8 +58,10 @@ def _group_hit(group: list[str], whole: set[str], lowered: str) -> Optional[str]
         if " " in word or "-" in word:
             if word in lowered:
                 return word
-        elif next(iter(_stems(word)), word) in whole:
-            return word
+        else:
+            stem = next(iter(_stems(word)), word)
+            if stem in whole or (len(stem) >= 6 and any(w.startswith(stem) for w in whole)):
+                return word  # "telecom" also finds "telecommunications"
     return None
 
 
@@ -65,6 +79,7 @@ def rank(
     groups = plan.core_groups
     need = -(-len(groups) // 2)  # ceil(n / 2)
     context = _words(" ".join(plan.context_terms))
+    outcome = _words(plan.outcome or "") - set().union(*[_words(w) for w in plan.all_core_words]) if plan.outcome else set()
     task = _words(task_word(project.task) or task_word(dataset.task if dataset else None) or "")
     domain = _words(project.domain or "")
     target_text = project.target or (dataset.target if dataset else None) or ""
@@ -82,7 +97,8 @@ def rank(
             continue  # the topic gate
         title_hits = sum(1 for g in groups if _group_hit(g, in_title, paper.title.lower()))
         share = len(matched) / len(groups) if groups else 0.0
-        p = share * 30 + (title_hits / len(groups) if groups else 0.0) * 10
+        p = share * 25 + (title_hits / len(groups) if groups else 0.0) * 10
+        o = 5.0 * _overlap(outcome, whole)
         c = 10.0 * _overlap(context, whole)
         t = 10.0 * _overlap(task, whole)
         d = 5.0 * _overlap(domain, whole)
@@ -91,8 +107,9 @@ def rank(
         r = 0.0
         if paper.publication_year is not None:
             r = 10.0 * max(0.0, min(1.0, 1.0 - (year_now - paper.publication_year) / 10.0))
-        s = 10.0 if venue_for(host_of(paper.url)) and paper.venue not in ("ResearchGate", "Google Scholar") else 5.0
-        comps = {"problem": p, "context": c, "task": t, "domain": d, "target": g, "methods": m, "recency": r, "source": s}
+        cites = 5.0 * min(1.0, math.log10(1 + max(0, paper.citation_count)) / 3.0) if paper.citation_count is not None else 0.0
+        s = 5.0 if venue_for(host_of(paper.url)) and paper.venue not in ("ResearchGate", "Google Scholar") else 2.5
+        comps = {"problem": p, "outcome": o, "context": c, "task": t, "domain": d, "target": g, "methods": m, "recency": r, "citations": cites, "source": s}
         score = round(sum(comps.values()), 2)
         reasons = []
         if matched:
@@ -106,9 +123,11 @@ def rank(
             reasons.append("it names " + ", ".join(paper.methods[:3]))
         if paper.publication_year:
             reasons.append(f"published {paper.publication_year}")
+        if paper.citation_count:
+            reasons.append(f"cited {paper.citation_count} times")
         scored.append(paper.model_copy(update={
             "relevance_score": min(score, 100.0), "score_components": {k: round(v, 2) for k, v in comps.items()},
-            "matched_terms": matched,
+            "matched_terms": matched, "paper_type": paper_type(paper.title, paper.abstract_snippet),
             "relevance_reason": ("Selected because " + "; ".join(reasons) + ".") if reasons
             else "Weak match: little of the problem appears in the retrieved text."}))
     return sorted(scored, key=lambda x: (-x.relevance_score, x.url))

@@ -114,6 +114,46 @@ class OpenAlexProvider(_Base):
         return hits[:limit]
 
 
+# ------------------------------------------------------------------------------------------ Semantic Scholar
+
+
+class SemanticScholarProvider(_Base):
+    """Citation counts and full abstracts. The keyless tier is shared and rate limited, so it asks little and a
+    refusal just means this source is skipped."""
+
+    name = "semanticscholar"
+    URL = "https://api.semanticscholar.org/graph/v1/paper/search"
+    max_queries = 2
+    delay = 1.2
+
+    async def search(self, query: str, limit: int) -> list[SearchHit]:
+        params = {
+            "query": " ".join(query_words(query, 10)) or query,
+            "limit": max(1, min(limit, 20)),
+            "fields": "title,abstract,year,authors,venue,externalIds,citationCount,url",
+        }
+        data = (await self._get(self.URL, params)).json()
+        hits: list[SearchHit] = []
+        for paper in data.get("data", []) if isinstance(data, dict) else []:
+            if not isinstance(paper, dict):
+                continue
+            title = _clean(paper.get("title"))
+            ids = paper.get("externalIds") if isinstance(paper.get("externalIds"), dict) else {}
+            doi = ids.get("DOI") if isinstance(ids.get("DOI"), str) else None
+            url = f"https://doi.org/{doi}" if doi else paper.get("url")
+            abstract = _clean(paper.get("abstract"))[:MAX_ABSTRACT]
+            if not title or not abstract or not isinstance(url, str) or not url.startswith("http"):
+                continue
+            authors = tuple(a["name"] for a in (paper.get("authors") or [])[:8]
+                            if isinstance(a, dict) and isinstance(a.get("name"), str))
+            year = paper.get("year") if isinstance(paper.get("year"), int) else None
+            citations = paper.get("citationCount") if isinstance(paper.get("citationCount"), int) else None
+            hits.append(SearchHit(
+                title=title, url=url, snippet=abstract, query=query, provider=self.name, authors=authors or None,
+                year=year, doi=doi, venue=_clean(paper.get("venue")) or None, citations=citations, academic=True))
+        return hits[:limit]
+
+
 # ------------------------------------------------------------------------------------------------ arXiv
 
 _ATOM = "{http://www.w3.org/2005/Atom}"

@@ -720,3 +720,17 @@ class TestUploadSuffix:
         with store_upload(open(path, "rb"), 10_000_000, ".xlsx") as stored:
             table = parse_xlsx(stored.path, "x.xlsx", stored.size_bytes, settings())
         assert table.info.rows_read == 2
+
+
+class TestExcelTitleRows:
+    def test_a_title_row_above_the_header_is_skipped_and_reported(self, tmp_path):
+        path = make_xlsx(tmp_path, {"Report": [["Monthly sales report 2024"], [], ["month", "region", "revenue"],
+                                                ["jan", "north", 10.5], ["feb", "south", 12.0], ["mar", "north", 9.0]]})
+        table = xlsx_parse(path)
+        assert list(table.frame.columns) == ["month", "region", "revenue"] and len(table.frame) == 3
+        assert any("title row" in w.lower() for w in table.info.warnings)
+
+    def test_a_single_column_sheet_keeps_its_header(self, tmp_path):
+        path = make_xlsx(tmp_path, {"S": [["score"], [1], [2], [3]]})
+        table = xlsx_parse(path)
+        assert list(table.frame.columns) == ["score"] and len(table.frame) == 3

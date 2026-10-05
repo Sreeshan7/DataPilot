@@ -146,6 +146,7 @@ class Settings(BaseSettings):
     # deterministic result is always produced first and is returned unchanged if the
     # call is disabled, unavailable or rejected.
     analysis_gemini_enabled: bool = True
+    analysis_ai_target_enabled: bool = True   # goal-aware target pick (one small call, names and types only)
     analysis_gemini_max_columns: int = 60
 
     # Optional "Research this problem" (web search only; Gemini is at most ONE synthesis call).

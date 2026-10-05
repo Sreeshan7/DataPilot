@@ -1,15 +1,21 @@
 import { Rich } from "@/components/chat/Rich";
-import { Lightbulb, Sparkles } from "lucide-react";
+import { BookOpenText, Lightbulb, Sparkles } from "lucide-react";
 import { Badge, type Tone } from "@/components/ui/badge";
 import { Disclosure } from "@/components/ui/disclosure";
 import { humanize } from "@/lib/format";
-import type { ModelRecommendation, ProjectCompatibility, ProjectIdea } from "@/types";
+import { Button } from "@/components/ui/button";
+import type { ModelRecommendation, ProjectCompatibility, ProjectIdea, ResearchRequest } from "@/types";
 
 const DIFFICULTY: Record<string, Tone> = { beginner: "success", intermediate: "info", advanced: "warning" };
 const COMPAT: Record<string, { tone: Tone; label: string }> = {
   MATCH: { tone: "success", label: "Fits your project" },
   UNKNOWN: { tone: "neutral", label: "Can't confirm a fit" },
   MISMATCH: { tone: "danger", label: "Doesn't fit your project" },
+};
+const FEASIBILITY: Record<string, { tone: Tone; label: string }> = {
+  high: { tone: "success", label: "Looks very workable" },
+  medium: { tone: "info", label: "Workable with care" },
+  low: { tone: "warning", label: "Needs more data" },
 };
 const TIER: Record<string, string> = { baseline: "Start here", stronger: "Then try", specialised: "Specialised" };
 
@@ -23,10 +29,12 @@ function Bullets({ title, items }: { title: string; items: string[] }) {
   );
 }
 
-export function IdeaCard({ idea }: { idea: ProjectIdea }) {
+export function IdeaCard({ idea, onResearch, busy }: { idea: ProjectIdea; onResearch?: (request: ResearchRequest, label: string) => void; busy?: boolean }) {
+  const feasibility = idea.feasibility ? (FEASIBILITY[idea.feasibility.level] ?? FEASIBILITY.medium) : null;
   return (
-    <article className="rounded-xl border border-border bg-surface p-4">
+    <article className="rounded-xl border border-border bg-surface p-5">
       <div className="flex flex-wrap items-center gap-2">
+        {feasibility && <Badge tone={feasibility.tone}>{feasibility.label}</Badge>}
         <Badge tone={DIFFICULTY[idea.difficulty] ?? "neutral"}>{idea.difficulty}</Badge>
         <Badge>{humanize(idea.task)}</Badge>
         {idea.source === "gemini_enhanced" && <Badge tone="accent"><Sparkles className="size-3" aria-hidden />AI-phrased</Badge>}
@@ -37,6 +45,15 @@ export function IdeaCard({ idea }: { idea: ProjectIdea }) {
         <ul className="mt-3 flex flex-wrap gap-1.5" aria-label="Features this idea uses">
           {idea.required_features.map((f) => <li key={f} className="rounded-md border border-border bg-muted/50 px-2 py-0.5 font-mono text-xs text-muted-foreground">{f}</li>)}
         </ul>
+      )}
+      {idea.feasibility && idea.feasibility.reasons.length > 0 && (
+        <p className="mt-3 text-[13px] leading-5 text-subtle">{idea.feasibility.reasons.join(" · ")}</p>
+      )}
+      {onResearch && idea.research_request && (
+        <Button size="sm" variant="secondary" className="mt-3.5" disabled={busy}
+          onClick={() => onResearch(idea.research_request as unknown as ResearchRequest, idea.title.replace(/`/g, ""))}>
+          <BookOpenText aria-hidden />Research this project
+        </Button>
       )}
       <Disclosure label="Details" className="mt-3 border-t border-border pt-2.5">
         <div className="space-y-3.5">
@@ -52,9 +69,9 @@ export function IdeaCard({ idea }: { idea: ProjectIdea }) {
   );
 }
 
-export function IdeasPanel({ ideas }: { ideas: ProjectIdea[] }) {
+export function IdeasPanel({ ideas, onResearch, busy }: { ideas: ProjectIdea[]; onResearch?: (request: ResearchRequest, label: string) => void; busy?: boolean }) {
   if (ideas.length === 0) return <p className="rounded-xl border border-border bg-surface/60 p-4 text-[13.5px] leading-6 text-muted-foreground">There isn't enough grounded information to suggest projects for this dataset yet. A file with a confirmed target gives the most.</p>;
-  return <div className="grid gap-3 lg:grid-cols-2">{ideas.map((i) => <IdeaCard key={i.id} idea={i} />)}</div>;
+  return <div className="grid gap-4 lg:grid-cols-2">{ideas.map((i) => <IdeaCard key={i.id} idea={i} onResearch={onResearch} busy={busy} />)}</div>;
 }
 
 export function ModelsPanel({ models }: { models: ModelRecommendation[] }) {

@@ -6,6 +6,8 @@ import { Markdown } from "@/components/chat/Markdown";
 import { Rich } from "@/components/chat/Rich";
 import { PaperCard } from "@/components/research/ResearchResult";
 import { ResearchOffer } from "@/components/research/ResearchOffer";
+import { IdeaCard } from "@/components/intelligence/IdeasPanel";
+import { ResearchResult } from "@/components/research/ResearchResult";
 import { HERO_PHRASES, useRotatingPhrase } from "@/hooks/useRotatingPhrase";
 import type { NextAction, Paper } from "@/types";
 
@@ -139,5 +141,36 @@ describe("ResearchOffer", () => {
     render(<ResearchOffer action={action({ available: false, reason: "Describe the problem first." })} onRun={() => undefined} aiAvailable busy={false} />);
     expect(screen.getByText("Describe the problem first.")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Research this problem" })).toBeNull();
+  });
+});
+
+describe("Project ideas and research", () => {
+  const idea = {
+    id: "i1", title: "Predict `traffic_volume`", problem_statement: "Build a regression model.", task: "regression",
+    target: "traffic_volume", required_features: ["temp"], optional_features: [], why_it_fits: "ok", challenges: [],
+    evaluation_metrics: [], baseline_models: [], stronger_models: [], difficulty: "beginner", extension_potential: "",
+    limitations: [], evidence_level: "datapilot_parsed", source: "deterministic", state: "POSSIBLE",
+    feasibility: { level: "high", reasons: ["48,000 rows is plenty for a first model"] },
+    research_request: { project: { problem: "traffic volume prediction" }, options: { max_papers: 8 } },
+  } as never;
+
+  it("shows feasibility and researches that specific project on click", async () => {
+    const onResearch = vi.fn();
+    render(<IdeaCard idea={idea} onResearch={onResearch} />);
+    expect(screen.getByText("Looks very workable")).toBeInTheDocument();
+    expect(screen.getByText(/48,000 rows/)).toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole("button", { name: /Research this project/ }));
+    expect(onResearch).toHaveBeenCalledWith({ project: { problem: "traffic volume prediction" }, options: { max_papers: 8 } }, "Predict traffic_volume");
+  });
+
+  it("offers the readings to pick from instead of guessing, and passes the choice back", async () => {
+    const onRefine = vi.fn();
+    const data = {
+      status: "needs_clarification", message: "Which problem do you mean?", limitations: [], queries: [],
+      interpretation: { options: ["Demand forecasting", "Customer churn"], core_terms: [], context_terms: [], corrections: {} },
+    } as never;
+    render(<ResearchResult data={data} onRefine={onRefine} />);
+    await userEvent.setup().click(screen.getByRole("button", { name: "Customer churn" }));
+    expect(onRefine).toHaveBeenCalledWith("Customer churn");
   });
 });

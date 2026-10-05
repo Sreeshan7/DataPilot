@@ -9,13 +9,15 @@ import { Button } from "@/components/ui/button";
 import type { ActionOutcome } from "@/features/assistant/useAssistant";
 import type { AssistantTurn, UserTurn } from "@/features/conversations/types";
 import { traceFromAssist, traceFromResearch, type Workflow } from "@/lib/activity";
-import type { AssistResponse, NextAction } from "@/types";
+import type { AssistResponse, NextAction, ResearchRequest } from "@/types";
 import { ErrorNotice } from "./ErrorNotice";
 import { NextActions, visibleActions } from "./NextActions";
 
 export interface MessageHandlers {
   onAction: (action: NextAction, options?: { useAi?: boolean; question?: string }) => ActionOutcome;
   onAnalyzeUrl: (url: string, name: string) => void;
+  onResearchIdea: (request: ResearchRequest, label: string) => void;
+  onRefineResearch: (turnId: string, problem: string) => void;
   onRetry: (turnId: string) => void;
   onCancel: (turnId: string) => void;
   onPickFile: () => void;
@@ -90,7 +92,7 @@ export function AssistantMessage({ turn, h }: { turn: AssistantTurn; h: MessageH
     const data = turn.result.data;
     return (
       <Shell label="Research results">
-        <ResearchResult data={data} onRetry={() => h.onRetry(turn.id)} />
+        <ResearchResult data={data} onRetry={() => h.onRetry(turn.id)} onRefine={(problem) => h.onRefineResearch(turn.id, problem)} busy={h.busy} />
         <ActivityTrace steps={traceFromResearch(data)} />
         {data.status === "success" && (
           <div className="flex flex-wrap gap-2.5" role="group" aria-label="Suggested next steps">
@@ -114,7 +116,7 @@ export function AssistantMessage({ turn, h }: { turn: AssistantTurn; h: MessageH
         <>
           <p className="text-[15px] leading-7">{data.headline}</p>
           {data.discovery && <DiscoveryResult data={data.discovery} busy={h.busy} onAnalyze={h.onAnalyzeUrl} />}
-          {data.analysis && <AnalysisView data={data.analysis} />}
+          {data.analysis && <AnalysisView data={data.analysis} onResearch={h.onResearchIdea} busy={h.busy} />}
         </>
       )}
       <ActivityTrace steps={traceFromAssist(data)} />

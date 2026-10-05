@@ -255,3 +255,79 @@ class TestStreaming:
         body = {"project": {"description": "help me with forecasting"}, "options": {}}
         events = self.parse(self.post(monkeypatch, body=body).text)
         assert events[-1][0] == "result" and events[-1][1]["status"] == "needs_clarification"
+
+
+class TestCardAndPaperSignals:
+    def card_reply(self, **kw):
+        base = {"problem": "traffic volume prediction", "outcome": "traffic volume", "task": "regression",
+                "core_terms": [{"term": "traffic", "synonyms": ["vehicle"]}], "context_terms": ["weather"],
+                "queries": ["traffic volume weather"], "clarification": None, "dataset_check": None}
+        base.update(kw)
+        return json.dumps(base)
+
+    def test_the_ai_card_adds_outcome_task_and_a_dataset_verdict(self):
+        reply = self.card_reply(dataset_check={"status": "mismatch", "note": "No weather columns exist."})
+        judged = json.dumps({"scores": []})
+        body = run(traffic_request(), JsonWriter([reply, judged]))
+        card = body.interpretation
+        assert card.outcome == "traffic volume" and card.task == "regression"
+        assert card.dataset_check.status == "mismatch" and card.dataset_check.source == "ai_inferred"
+
+    def test_an_ambiguous_question_is_asked_once_not_guessed(self):
+        ask = {"question": "Which problem do you mean?", "options": ["Demand forecasting", "Customer churn"]}
+        writer = JsonWriter([self.card_reply(clarification=ask)])
+        provider = FakeProvider(TRAFFIC_HITS)
+        body = asyncio.run(ResearchService(settings(), provider, writer).discover(traffic_request()))
+        assert body.status is ResearchStatus.NEEDS_CLARIFICATION and body.message == "Which problem do you mean?"
+        assert body.interpretation.options == ["Demand forecasting", "Customer churn"]
+        assert provider.calls == []  # nothing was searched before the user answered
+
+    def test_a_confirmed_reading_is_not_asked_about_again(self):
+        ask = {"question": "Which problem do you mean?", "options": ["A reading", "Another reading"]}
+        writer = JsonWriter([self.card_reply(clarification=ask), json.dumps({"scores": []})])
+        body = run(traffic_request(confirmed=True), writer)
+        assert body.status is ResearchStatus.SUCCESS
+
+    def test_a_bad_card_is_ignored(self):
+        junk = self.card_reply(task="astrology", clarification={"question": "see http://x.test", "options": ["a", "b"]},
+                               dataset_check={"status": "great", "note": "x"})
+        body = run(traffic_request(), JsonWriter([junk, "{}"]))
+        card = body.interpretation
+        assert body.status is ResearchStatus.SUCCESS and card.task is None and not card.options and card.dataset_check is None
+
+    def test_the_stated_target_is_checked_against_the_columns_without_ai(self):
+        req = ResearchRequest.model_validate({
+            "project": {"description": TRAFFIC_QUESTION, "target": "congestion"},
+            "dataset": {"name": "t", "columns": ["hour", "temp", "traffic_volume"]}, "options": {}})
+        body = asyncio.run(ResearchService(settings(), FakeProvider(TRAFFIC_HITS)).discover(req))
+        assert body.interpretation.dataset_check.status == "mismatch" and body.interpretation.dataset_check.source == "datapilot"
+        ok = req.model_copy(deep=True)
+        ok.project.target = "Traffic Volume"
+        body = asyncio.run(ResearchService(settings(), FakeProvider(TRAFFIC_HITS)).discover(ok))
+        assert body.interpretation.dataset_check.status == "consistent"
+
+    def test_paper_types_are_read_from_wording_and_citations_add_weight(self):
+        from app.services.research.ranking import paper_type
+
+        assert paper_type("A survey of traffic forecasting", None) == "survey"
+        assert paper_type("Traffic flow with LSTM", "A case study on real-world sensors.") == "applied"
+        assert paper_type("Traffic flow with LSTM", "We propose a model.") == "method"
+        cited = [hit("Traffic volume prediction using weather", "https://arxiv.org/abs/2101.00001", "Traffic volume with weather.")]
+        plain = ResearchService(settings(), FakeProvider(cited))
+        base = asyncio.run(plain.discover(traffic_request())).papers[0]
+        assert base.paper_type == "method" and base.score_components["citations"] == 0.0  # unknown earns nothing
+
+
+class TestSemanticScholar:
+    def test_it_returns_abstracts_and_citation_counts_and_drops_incomplete_records(self):
+        import httpx
+        from app.services.research.scholarly import SemanticScholarProvider
+
+        payload = {"data": [
+            {"title": "Traffic volume forecasting", "abstract": "Weather and traffic.", "year": 2022, "venue": "TRR",
+             "externalIds": {"DOI": "10.1/t"}, "citationCount": 120, "authors": [{"name": "A. One"}]},
+            {"title": "No abstract", "abstract": None, "externalIds": {"DOI": "10.1/u"}},
+        ]}
+        client = httpx.AsyncClient(transport=httpx.MockTransport(lambda r: httpx.Response(200, json=payload)))
+        hits = asyncio.run(SemanticScholarProvider(settings(), client).search("traffic volume", 5))
+        assert len(hits) == 1 and hits[0].citations == 120 and hits[0].doi == "10.1/t" and hits[0].academic

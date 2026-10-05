@@ -48,6 +48,8 @@ export function ChatWorkspace({ store, aiAvailable }: { store: ConversationStore
   const handlers: MessageHandlers = {
     onAction: assistant.runAction,
     onAnalyzeUrl: (url, name) => assistant.send({ text: `Analyze ${name}`, link: url }),
+    onResearchIdea: assistant.researchIdea,
+    onRefineResearch: (turnId, problem) => store.active && assistant.refineResearch(store.active.id, turnId, problem),
     onRetry: (turnId) => store.active && assistant.retry(store.active.id, turnId),
     onCancel: assistant.cancel,
     onPickFile: () => composer.current?.openFilePicker(),

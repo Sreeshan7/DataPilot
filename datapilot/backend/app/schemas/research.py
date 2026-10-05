@@ -60,6 +60,7 @@ class ResearchOptions(BaseModel):
     max_papers: int = Field(8, ge=1, le=15)
     min_year: Optional[int] = Field(None, ge=1950, le=2100)
     use_ai: bool = Field(False, description="Add an AI-written interpretation of the evidence (one extra call).")
+    confirmed: bool = Field(False, description="The user already picked/confirmed the reading: do not ask again.")
     ai_assist: bool = Field(
         True,
         description="Let the AI understand the question and judge paper relevance (two small calls; falls back silently).",
@@ -87,6 +88,7 @@ class Paper(BaseModel):
     doi: Optional[str] = None
     abstract_snippet: Optional[str] = None
     citation_count: Optional[int] = Field(None, description="Never estimated; None when not retrieved.")
+    paper_type: Optional[str] = Field(None, description="survey | applied | method: read from the title/abstract wording.")
     matched_queries: list[str] = Field(default_factory=list)
     matched_terms: list[str] = Field(default_factory=list, description="Subject words of the question found in the title/abstract.")
     ai_relevance: Optional[int] = Field(None, ge=0, le=3, description="An AI model's 0-3 judgement of topical fit (not a fact about the paper).")
@@ -193,6 +195,19 @@ class Interpretation(BaseModel):
     context_terms: list[str] = Field(default_factory=list)
     corrections: dict[str, str] = Field(default_factory=dict)
     ai_assisted: bool = False
+    outcome: Optional[str] = Field(None, description="What is being predicted or estimated, in a short phrase.")
+    task: Optional[str] = None
+    features: list[str] = Field(default_factory=list)
+    dataset_check: Optional["DatasetCheck"] = None
+    options: list[str] = Field(default_factory=list, description="Readings to pick from when the question is ambiguous.")
+
+
+class DatasetCheck(BaseModel):
+    """Whether the user's wording and the dataset's columns agree. A mismatch is shown, never hidden."""
+
+    status: str = Field(..., description="consistent | mismatch | unknown")
+    note: str = ""
+    source: str = "datapilot"  # datapilot (deterministic) | ai_inferred
 
 
 class ResearchResponse(BaseModel):

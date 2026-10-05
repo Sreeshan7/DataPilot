@@ -208,7 +208,11 @@ class TestIdeasAreGrounded:
         pi = intelligence_of("diabetes")
         shape = shape_of(outcome.analysis)
         again = generate_ideas(outcome.analysis, pi.understanding, pi.feature_intelligence, shape)
-        assert [i.model_dump() for i in again] == [i.model_dump() for i in pi.project_ideas]
+        # the service attaches a ready-made research request; every other field must match exactly
+        strip = lambda ideas: [{k: v for k, v in i.model_dump().items() if k != "research_request"} for i in ideas]
+        assert strip(again) == strip(pi.project_ideas)
+        assert all(i.research_request and i.research_request["project"]["problem"] for i in pi.project_ideas)
+        assert all(i.feasibility is None or i.feasibility.level in ("high", "medium", "low") for i in pi.project_ideas)
 
 
 class TestModelRecommendations:

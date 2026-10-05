@@ -156,9 +156,29 @@ export interface paths {
         put?: never;
         /**
          * Research recent papers and methods for this problem (optional, user-selected)
-         * @description Builds 3-5 focused queries from the structured project context, searches the web for academic sources, deduplicates and ranks them with an explainable score, extracts the methods and reported figures their retrieved text names, and recommends algorithms by combining literature support with compatibility to your task. Every paper has a URL and an evidence label. With `options.use_ai`, ONE Gemini call adds a clearly labelled interpretation; if it fails or is unsupported by the evidence the verified results are returned without it. Papers are never invented: when search yields nothing the status says so.
+         * @description Understands the question (core topics, context, typo repairs), searches OpenAlex, arXiv and Crossref (web search only as a fallback), deduplicates, keeps only papers that are about the subject, ranks them with an explainable score, extracts the methods and reported figures their retrieved text names, and recommends algorithms by combining literature support with compatibility to your task. Every paper has a URL and an evidence label. Optional AI steps (question understanding, relevance judging, interpretation) are validated and fall back silently. Papers are never invented: when search yields nothing the status says so.
          */
         post: operations["discover_api_v1_research_discover_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/research/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Research with live progress (Server-Sent Events)
+         * @description Same work and same final body as `/research/discover`, delivered as a text/event-stream: `plan` (the stages), `step` (id, state running|done|skipped, detail) as each stage really happens, then `result` (the ResearchResponse) or `error`. Stage events carry counts only.
+         */
+        post: operations["stream_api_v1_research_stream_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -912,6 +932,27 @@ export interface components {
              */
             merged_candidate_count: number;
         };
+        /**
+         * DatasetCheck
+         * @description Whether the user's wording and the dataset's columns agree. A mismatch is shown, never hidden.
+         */
+        DatasetCheck: {
+            /**
+             * Status
+             * @description consistent | mismatch | unknown
+             */
+            status: string;
+            /**
+             * Note
+             * @default
+             */
+            note: string;
+            /**
+             * Source
+             * @default datapilot
+             */
+            source: string;
+        };
         /** DatasetIdentity */
         DatasetIdentity: {
             /** Name */
@@ -1438,6 +1479,19 @@ export interface components {
                 [key: string]: number;
             };
         };
+        /**
+         * Feasibility
+         * @description How realistic the idea looks on THIS data. Computed from the profile, never promised as an outcome.
+         */
+        Feasibility: {
+            /**
+             * Level
+             * @description high | medium | low
+             */
+            level: string;
+            /** Reasons */
+            reasons?: string[];
+        };
         /** FeatureAssessment */
         FeatureAssessment: {
             /** Column */
@@ -1922,6 +1976,21 @@ export interface components {
              * @default false
              */
             ai_assisted: boolean;
+            /**
+             * Outcome
+             * @description What is being predicted or estimated, in a short phrase.
+             */
+            outcome?: string | null;
+            /** Task */
+            task?: string | null;
+            /** Features */
+            features?: string[];
+            dataset_check?: components["schemas"]["DatasetCheck"] | null;
+            /**
+             * Options
+             * @description Readings to pick from when the question is ambiguous.
+             */
+            options?: string[];
         };
         /** KeywordMatchEvidence */
         KeywordMatchEvidence: {
@@ -2162,6 +2231,11 @@ export interface components {
              * @description Never estimated; None when not retrieved.
              */
             citation_count?: number | null;
+            /**
+             * Paper Type
+             * @description survey | applied | method: read from the title/abstract wording.
+             */
+            paper_type?: string | null;
             /** Matched Queries */
             matched_queries?: string[];
             /**
@@ -2310,6 +2384,14 @@ export interface components {
             source: components["schemas"]["IdeaSource"];
             /** @default possible */
             state: components["schemas"]["CandidateState"];
+            feasibility?: components["schemas"]["Feasibility"] | null;
+            /**
+             * Research Request
+             * @description A ready-made POST /research/stream body for this specific project (never run automatically).
+             */
+            research_request?: {
+                [key: string]: unknown;
+            } | null;
         };
         /** ProjectIntelligence */
         ProjectIntelligence: {
@@ -2717,6 +2799,12 @@ export interface components {
              * @default false
              */
             use_ai: boolean;
+            /**
+             * Confirmed
+             * @description The user already picked/confirmed the reading: do not ask again.
+             * @default false
+             */
+            confirmed: boolean;
             /**
              * Ai Assist
              * @description Let the AI understand the question and judge paper relevance (two small calls; falls back silently).
@@ -3487,6 +3575,37 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ResearchResponse"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    stream_api_v1_research_stream_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResearchRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

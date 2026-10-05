@@ -28,6 +28,19 @@ def _action(available: bool, reason: str, payload: Optional[dict] = None) -> Nex
         endpoint=ENDPOINT, payload=payload or {})
 
 
+def request_for_idea(idea, analysis: DatasetAnalysis, goal: Optional[str]) -> dict:
+    """A ready-made research request for ONE project idea. Built from fields the analysis already holds; sends nothing."""
+    subject = idea.target.replace("_", " ") if idea.target else idea.title.replace("`", "")
+    columns = [c.normalized_name for c in analysis.schema_info.columns if c.role not in ("row_id", "ignore")][:50]
+    return {
+        "project": {"description": goal, "problem": f"{subject} prediction"[:200] if idea.target else subject[:200],
+                    "task": idea.task.value, "target": idea.target, "features": idea.required_features[:12]},
+        "dataset": {"name": analysis.dataset_identity.name, "columns": columns, "task": idea.task.value,
+                    "target": idea.target, "rows": analysis.schema_info.row_count},
+        "options": {"max_papers": 8, "use_ai": False},
+    }
+
+
 def offer_from_analysis(
     analysis: DatasetAnalysis, intelligence: Optional[ProjectIntelligence], goal: Optional[str]
 ) -> NextAction:

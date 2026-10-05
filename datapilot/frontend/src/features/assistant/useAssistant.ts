@@ -131,16 +131,34 @@ export function useAssistant(store: ConversationStore) {
     }
   }, [store, finishWithError]);
 
-  const startResearch = useCallback((payload: ResearchRequest, useAi: boolean) => {
+  const startResearch = useCallback((payload: ResearchRequest, useAi: boolean, label = "Research this problem") => {
     const convId = store.ensure(activeRef.current?.id ?? null);
     const turnId = uid("turn");
     const request: ResearchRequest = { ...payload, options: { ...(payload.options ?? {}), use_ai: useAi } as ResearchRequest["options"] };
     store.append(convId, [
-      { id: uid("turn"), role: "user", text: "Research this problem", at: Date.now() },
+      { id: uid("turn"), role: "user", text: label, at: Date.now() },
       { id: turnId, role: "assistant", workflow: "research", status: "pending", at: Date.now() },
     ]);
     void runResearch(convId, turnId, request);
   }, [store, runResearch]);
+
+  /** Research one specific project idea, using the request the backend prepared for it. */
+  const researchIdea = useCallback((request: ResearchRequest, label: string) => {
+    startResearch(request, false, `Research: ${label}`);
+  }, [startResearch]);
+
+  /** Re-run research with the user's own wording or a chosen reading; the choice is final, so it is not asked again. */
+  const refineResearch = useCallback((convId: string, turnId: string, problem: string) => {
+    const conv = store.conversations.find((c) => c.id === convId);
+    const turn = conv?.turns.find((t) => t.id === turnId);
+    if (!turn || turn.role !== "assistant" || turn.retry?.type !== "research") return;
+    const base = turn.retry.request;
+    const request: ResearchRequest = {
+      ...base, project: { ...base.project, problem },
+      options: { ...(base.options ?? {}), confirmed: true } as ResearchRequest["options"],
+    };
+    startResearch(request, Boolean(base.options?.use_ai), `Research: ${problem}`);
+  }, [store, startResearch]);
 
   /** Maps a backend next action to a real call. Anything the UI cannot perform is reported, not faked. */
   const runAction = useCallback((action: NextAction, options?: { useAi?: boolean; question?: string }): ActionOutcome => {
@@ -191,5 +209,5 @@ export function useAssistant(store: ConversationStore) {
     return f ? { name: f.name, size: f.size } : undefined;
   }, []);
 
-  return { send, runAction, retry, cancel, fileFor };
+  return { send, runAction, retry, cancel, fileFor, researchIdea, refineResearch };
 }

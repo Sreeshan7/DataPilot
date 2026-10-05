@@ -33,6 +33,7 @@ research researching best good better top methods method techniques technique al
 papers paper literature review study studies state art find me please help is are in by can will how what which
 machine learning ml ai dataset data specific certain particular different various some any many more most
 analysis analyse analyze understand explore improve improving accurate accuracy performance conditions condition
+company companies business organization organisation
 """.split()) - {"performance"}  # "student performance" is a subject; it is only meta when alone
 
 #: Words that, after a connector, describe the situation rather than the subject.
@@ -105,6 +106,12 @@ class QueryPlan:
     queries: list[str] = field(default_factory=list)
     why_not: Optional[str] = None
     ai_assisted: bool = False
+    outcome: Optional[str] = None                # what is predicted, e.g. "traffic volume"
+    task: Optional[str] = None                   # classification | regression | forecasting | ...
+    features: list[str] = field(default_factory=list)
+    options: list[str] = field(default_factory=list)   # readings to pick from when the question is ambiguous
+    clarification: Optional[str] = None          # the one question to ask instead of guessing
+    dataset_check: Optional[tuple[str, str, str]] = None   # (status, note, source)
 
     @property
     def core_terms(self) -> list[str]:
@@ -142,6 +149,19 @@ def understand(project: ResearchProject, dataset: Optional[ResearchDataset] = No
     return QueryPlan(problem=" ".join(core), core_groups=[[w] for w in core], context_terms=context, corrections=corrections)
 
 
+def check_dataset(project: ResearchProject, dataset: Optional[ResearchDataset]) -> Optional[tuple[str, str, str]]:
+    """Deterministic: does the stated target exist among the dataset's columns? (status, note, source) or None."""
+    if not dataset or not dataset.columns:
+        return None
+    wanted = project.target or None
+    if not wanted:
+        return None
+    norm = lambda s: re.sub(r"[^a-z0-9]+", "", s.lower())
+    if any(norm(wanted) == norm(c) for c in dataset.columns):
+        return ("consistent", f"The target '{wanted}' is a column in the dataset.", "datapilot")
+    return ("mismatch", f"The stated target '{wanted}' is not among the dataset's {len(dataset.columns)} columns.", "datapilot")
+
+
 def problem_phrase(project: ResearchProject) -> Optional[str]:
     return understand(project).problem
 
@@ -154,12 +174,14 @@ def build_queries(
     plan = plan or understand(project, dataset)
     if plan.problem is None:
         return [], plan.why_not
-    task = task_word(project.task) or (task_word(dataset.task) if dataset else None)
+    task = plan.task or task_word(project.task) or (task_word(dataset.task) if dataset else None)
     domain = _clean(project.domain) if project.domain else None
     topic = f'"{plan.problem}"' if len(plan.core_terms) > 1 else plan.problem
     queries = [f"{topic} machine learning"]
     if task:
         queries.append(f"{topic} {task}")
+    if plan.outcome and plan.outcome.lower() not in plan.problem.lower():
+        queries.append(f"{topic} {plan.outcome}")
     if plan.context_terms:
         queries.append(f"{plan.problem} {' '.join(plan.context_terms[:2])} prediction")
     if domain and domain.lower() not in plan.problem.lower():
