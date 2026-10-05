@@ -1,0 +1,177 @@
+{
+  "metrics": {
+    "datasets": 10.0,
+    "recommended_precision": 0.92,
+    "noise_recommended": 2.0,
+    "strong_driver_recall": 1.0,
+    "leak_detection_recall": 1.0,
+    "leaks_recommended": 0.0,
+    "identifier_recall": 1.0,
+    "invented_columns": 0.0,
+    "goal_cases": 14.0,
+    "goal_accuracy": 1.0,
+    "goal_false_match": 0.0,
+    "goal_false_mismatch": 0.0
+  },
+  "datasets": [
+    {
+      "name": "student_performance",
+      "reliable": true,
+      "recommended": [
+        "assignment_scores",
+        "attendance",
+        "previous_marks",
+        "study_hours"
+      ],
+      "noise_recommended": [],
+      "drivers_missed": [],
+      "leaks_missed": [],
+      "leaks_recommended": [],
+      "identifiers_missed": [],
+      "ideas": 3,
+      "invented_columns": []
+    },
+    {
+      "name": "student_performance_leaky",
+      "reliable": true,
+      "recommended": [
+        "assignment_scores",
+        "attendance",
+        "previous_marks",
+        "study_hours"
+      ],
+      "noise_recommended": [],
+      "drivers_missed": [],
+      "leaks_missed": [],
+      "leaks_recommended": [],
+      "identifiers_missed": [],
+      "ideas": 3,
+      "invented_columns": []
+    },
+    {
+      "name": "customer_churn",
+      "reliable": true,
+      "recommended": [
+        "contract",
+        "monthly_charges",
+        "tenure_months"
+      ],
+      "noise_recommended": [],
+      "drivers_missed": [],
+      "leaks_missed": [],
+      "leaks_recommended": [],
+      "identifiers_missed": [],
+      "ideas": 3,
+      "invented_columns": []
+    },
+    {
+      "name": "house_prices",
+      "reliable": true,
+      "recommended": [
+        "neighborhood",
+        "sqft"
+      ],
+      "noise_recommended": [],
+      "drivers_missed": [],
+      "leaks_missed": [],
+      "leaks_recommended": [],
+      "identifiers_missed": [],
+      "ideas": 3,
+      "invented_columns": []
+    },
+    {
+      "name": "diabetes",
+      "reliable": true,
+      "recommended": [
+        "bmi",
+        "glucose"
+      ],
+      "noise_recommended": [],
+      "drivers_missed": [],
+      "leaks_missed": [],
+      "leaks_recommended": [],
+      "identifiers_missed": [],
+      "ideas": 4,
+      "invented_columns": []
+    },
+    {
+      "name": "bank_marketing",
+      "reliable": true,
+      "recommended": [
+        "balance"
+      ],
+      "noise_recommended": [],
+      "drivers_missed": [],
+      "leaks_missed": [],
+      "leaks_recommended": [],
+      "identifiers_missed": [],
+      "ideas": 4,
+      "invented_columns": []
+    },
+    {
+      "name": "fraud_transactions",
+      "reliable": true,
+      "recommended": [
+        "amount"
+      ],
+      "noise_recommended": [],
+      "drivers_missed": [],
+      "leaks_missed": [],
+      "leaks_recommended": [],
+      "identifiers_missed": [],
+      "ideas": 4,
+      "invented_columns": []
+    },
+    {
+      "name": "iris_like",
+      "reliable": true,
+      "recommended": [
+        "petal_length",
+        "petal_width",
+        "sepal_length",
+        "sepal_width"
+      ],
+      "noise_recommended": [],
+      "drivers_missed": [],
+      "leaks_missed": [],
+      "leaks_recommended": [],
+      "identifiers_missed": [],
+      "ideas": 4,
+      "invented_columns": []
+    },
+    {
+      "name": "employee_attrition",
+      "reliable": true,
+      "recommended": [],
+      "noise_recommended": [],
+      "drivers_missed": [],
+      "leaks_missed": [],
+      "leaks_recommended": [],
+      "identifiers_missed": [],
+      "ideas": 4,
+      "invented_columns": []
+    },
+    {
+      "name": "wide_numeric",
+      "reliable": true,
+      "recommended": [
+        "f003",
+        "f017",
+        "f058",
+        "f085"
+      ],
+      "noise_recommended": [
+        "f058",
+        "f085"
+      ],
+      "drivers_missed": [],
+      "leaks_missed": [],
+      "leaks_recommended": [],
+      "identifiers_missed": [],
+      "ideas": 4,
+      "invented_columns": []
+    }
+  ],
+  "goal_misses": [],
+  "safety_violations": []
+}

@@ -347,3 +347,31 @@ class TestRegistryOnly:
     def test_a_registry_dataset_can_contradict_the_goal(self):
         pi = build(external_outcome(uci, dataset_name="Iris"), goal="Predict customer churn using tenure and contract")
         assert pi.compatibility.status is CS.MISMATCH
+
+
+class TestNamedInputsThatAreAbsent:
+    def test_an_input_no_column_carries_keeps_the_answer_short_of_a_match(self):
+        c = compat("customer_churn", "Predict customer churn using tenure, contract and favourite colour")
+        assert c.status is CS.UNKNOWN and not c.suggests_alternative_dataset
+
+    def test_with_every_input_present_it_is_a_match(self):
+        assert compat("customer_churn", "Predict customer churn using tenure and contract").status is CS.MATCH
+
+    def test_a_goal_that_lists_no_inputs_can_still_match_on_target_and_task(self):
+        assert compat("customer_churn", "Predict whether customers churn").status is CS.MATCH
+
+
+class TestNameMatching:
+    def test_a_generic_word_does_not_hide_a_column_made_only_of_it(self):
+        c = compat("fraud_transactions", "Detect fraud using transaction amount and hour")
+        assert c.status is CS.MATCH and "amount" in c.matched_columns
+
+    def test_common_abbreviations_are_understood(self):
+        c = compat("house_prices", "Estimate the price of a house using square footage and bedrooms")
+        assert c.status is CS.MATCH and "sqft" in c.matched_columns
+
+    def test_one_generic_shared_word_is_not_a_match(self):
+        from app.services.project_intelligence.compatibility import _match_column
+
+        assert _match_column("attendance rate", {"pass_rate", "final_grade"}) is None
+        assert _match_column("final grade", {"pass_rate", "final_grade"}) == "final_grade"

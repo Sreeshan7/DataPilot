@@ -71,6 +71,18 @@ _FILLER = {"the", "their", "its", "each", "every", "some", "any", "of", "own", "
            "several", "different", "other", "such", "as", "like", "data", "information", "details", "levels", "level"}
 
 
+#: Common abbreviations in column names and the words a project would use for them.
+_ABBREVIATIONS: dict[str, tuple[str, ...]] = {
+    "sqft": ("square", "foot", "footage", "feet", "area"), "bmi": ("body", "mass", "index"),
+    "qty": ("quantity",), "amt": ("amount",), "num": ("number",), "avg": ("average",), "yr": ("year",),
+    "dob": ("birth", "date"), "pct": ("percent", "percentage"), "temp": ("temperature",),
+    "cust": ("customer",), "bp": ("blood", "pressure"), "gpa": ("grade", "point", "average"),
+    "tenure": ("duration",),
+}
+#: Words that name a kind of quantity rather than a particular one.
+_GENERIC = {"amount", "count", "number", "rate", "ratio", "score", "total", "value", "level", "type", "status"}
+
+
 class GoalReading:
     """What the project text asks for, extracted without any model."""
 
@@ -118,17 +130,23 @@ def _match_column(phrase: str, names: set[str]) -> Optional[str]:
     least half of the phrase or half of the name: one shared generic word ("patient" in "patient has
     diabetes" and "patient_id") is not a match.
     """
-    wanted = set(value_tokens(phrase)) or _tokens(phrase)
+    wanted = _tokens(phrase) - _FILLER
     if not wanted:
         return None
     best: tuple[float, str] | None = None
     for name in sorted(names):
-        have = set(value_tokens(name)) or _tokens(name)
+        base = _tokens(name)
+        have = base | {w for t in base for w in _ABBREVIATIONS.get(t, ())}
         if not have:
             continue
         shared_wanted = {w for w in wanted if any(_same_word(w, h) for h in have)}
         shared_have = {h for h in have if any(_same_word(w, h) for w in wanted)}
         if not shared_wanted:
+            continue
+        # Words like "rate" or "amount" alone say nothing about which quantity is meant: they only
+        # count when the column itself is made of nothing else ("amount").
+        generic = set(value_tokens(" ".join(shared_wanted))) == set()
+        if generic and any(t not in _GENERIC for t in base):
             continue
         strength = max(len(shared_wanted) / len(wanted), len(shared_have) / len(have))
         if strength >= 0.5 and (best is None or strength > best[0]):
@@ -288,7 +306,9 @@ def assess_compatibility(
     core = dimensions[:3]
     if any(d.status is MISMATCH for d in dimensions):
         status = MISMATCH
-    elif sum(d.status is MATCH for d in core) >= 2:
+    elif sum(d.status is MATCH for d in core) >= 2 and not (features.status is UNKNOWN and goal.feature_phrases):
+        # An input the project names but no column carries keeps the answer short of a MATCH,
+        # as an absent requested feature keeps a dataset out of HIGH confidence in User A.
         status = MATCH
     else:
         status = UNKNOWN
