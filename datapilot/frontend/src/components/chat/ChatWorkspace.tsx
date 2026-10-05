@@ -66,14 +66,14 @@ export function ChatWorkspace({ store, aiAvailable }: { store: ConversationStore
   if (empty) {
     return (
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-        <div className="m-auto w-full max-w-[44rem] px-4 pb-16 pt-6 sm:px-6">
+        <div className="m-auto w-full max-w-[46rem] px-5 pb-20 pt-10 sm:px-8">
           <Hero typing={typing} />
-          <div className="mt-8">{composerEl}</div>
-          <div className="mt-3 flex flex-wrap justify-center gap-2" role="group" aria-label="Ways to start">
+          <div className="mt-10">{composerEl}</div>
+          <div className="mt-5 flex flex-wrap justify-center gap-2.5" role="group" aria-label="Ways to start">
             {SUGGESTIONS.map((s) => (
               <button key={s.label} type="button"
                 onClick={() => (s.action === "file" ? composer.current?.openFilePicker() : composer.current?.setText(s.hint))}
-                className="rounded-full border border-border bg-surface px-3.5 py-1.5 text-[13px] text-muted-foreground transition-colors hover:border-accent/40 hover:bg-muted hover:text-foreground">
+                className="rounded-full border border-border bg-surface px-4 py-2 text-[13px] text-muted-foreground transition-colors hover:border-accent/40 hover:bg-muted hover:text-foreground">
                 {s.label}
               </button>
             ))}
@@ -91,7 +91,7 @@ export function ChatWorkspace({ store, aiAvailable }: { store: ConversationStore
         className="min-h-0 flex-1 overflow-y-auto"
         role="log" aria-label="Conversation" aria-live="off"
       >
-        <div className="mx-auto w-full max-w-[48rem] space-y-8 px-4 pb-24 pt-4 sm:px-6">
+        <div className="mx-auto w-full max-w-[50rem] space-y-12 px-4 pb-32 pt-8 sm:px-8">
           {turns.map((t) => (
             <div key={t.id} data-turn={t.id}>
               {t.role === "user" ? <UserMessage turn={t} /> : <AssistantMessage turn={t} h={handlers} />}
@@ -99,7 +99,7 @@ export function ChatWorkspace({ store, aiAvailable }: { store: ConversationStore
           ))}
         </div>
       </div>
-      <div className="relative shrink-0 bg-gradient-to-t from-background via-background to-transparent px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 sm:px-6">
+      <div className="relative shrink-0 bg-gradient-to-t from-background via-background to-transparent px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4 sm:px-8">
         <button
           type="button" aria-label="Scroll to latest" onClick={() => toBottom()}
           className={cn("absolute -top-11 left-1/2 grid size-9 -translate-x-1/2 place-items-center rounded-full border border-border bg-surface text-muted-foreground shadow-lg transition-all hover:text-foreground",
@@ -108,7 +108,7 @@ export function ChatWorkspace({ store, aiAvailable }: { store: ConversationStore
         >
           <ArrowDown className="size-4" aria-hidden />
         </button>
-        <div className="mx-auto w-full max-w-[48rem]">{composerEl}</div>
+        <div className="mx-auto w-full max-w-[50rem]">{composerEl}</div>
       </div>
     </div>
   );

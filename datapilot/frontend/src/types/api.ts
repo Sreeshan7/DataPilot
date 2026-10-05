@@ -858,7 +858,7 @@ export interface components {
             modalities?: string[];
             /**
              * Columns
-             * @description Column names from a structured schema the registry published (for example Hugging Face's dataset_info.features). Empty when the registry published none; prose that merely mentions columns is NOT recorded here.
+             * @description Column names from a structured schema the registry published (for example Hugging Face's dataset_info.features) or from the header row of the registry's main csv. Empty when the registry published none; prose that merely mentions columns is NOT recorded here.
              */
             columns?: string[];
             /**
@@ -1618,6 +1618,11 @@ export interface components {
              */
             calls_made: number;
             /**
+             * Assisted
+             * @description AI steps that helped before synthesis.
+             */
+            assisted?: string[];
+            /**
              * Status
              * @default not_requested
              */
@@ -1897,6 +1902,27 @@ export interface components {
              */
             api_version: string;
         };
+        /**
+         * Interpretation
+         * @description How DataPilot understood the question, shown so the user can correct it.
+         */
+        Interpretation: {
+            /** Problem */
+            problem?: string | null;
+            /** Core Terms */
+            core_terms?: string[];
+            /** Context Terms */
+            context_terms?: string[];
+            /** Corrections */
+            corrections?: {
+                [key: string]: string;
+            };
+            /**
+             * Ai Assisted
+             * @default false
+             */
+            ai_assisted: boolean;
+        };
         /** KeywordMatchEvidence */
         KeywordMatchEvidence: {
             /** Canonical Term */
@@ -2138,6 +2164,18 @@ export interface components {
             citation_count?: number | null;
             /** Matched Queries */
             matched_queries?: string[];
+            /**
+             * Matched Terms
+             * @description Subject words of the question found in the title/abstract.
+             */
+            matched_terms?: string[];
+            /**
+             * Ai Relevance
+             * @description An AI model's 0-3 judgement of topical fit (not a fact about the paper).
+             */
+            ai_relevance?: number | null;
+            /** Ai Reason */
+            ai_reason?: string | null;
             /**
              * Relevance Score
              * @default 0
@@ -2493,6 +2531,26 @@ export interface components {
             kaggle_base_url: string;
             /** Dataset Sources */
             dataset_sources?: string[];
+            /**
+             * Gemini Keys
+             * @default 0
+             */
+            gemini_keys: number;
+            /**
+             * Gemini Calls Last Minute
+             * @default 0
+             */
+            gemini_calls_last_minute: number;
+            /**
+             * Gemini Calls Today
+             * @default 0
+             */
+            gemini_calls_today: number;
+            /**
+             * Gemini Calls Available Now
+             * @default 0
+             */
+            gemini_calls_available_now: number;
         };
         /**
          * RecommendationConfidence
@@ -2655,9 +2713,16 @@ export interface components {
             min_year?: number | null;
             /**
              * Use Ai
+             * @description Add an AI-written interpretation of the evidence (one extra call).
              * @default false
              */
             use_ai: boolean;
+            /**
+             * Ai Assist
+             * @description Let the AI understand the question and judge paper relevance (two small calls; falls back silently).
+             * @default true
+             */
+            ai_assist: boolean;
         };
         /** ResearchProject */
         ResearchProject: {
@@ -2697,6 +2762,7 @@ export interface components {
             message?: string | null;
             /** Queries */
             queries?: string[];
+            interpretation?: components["schemas"]["Interpretation"] | null;
             research_summary: components["schemas"]["ResearchSummary"];
             /**
              * Datapilot Summary
@@ -2738,6 +2804,11 @@ export interface components {
              * @default 0
              */
             results_rejected_as_non_academic: number;
+            /**
+             * Excluded Off Topic
+             * @default 0
+             */
+            excluded_off_topic: number;
             /** Search Provider */
             search_provider: string;
         };

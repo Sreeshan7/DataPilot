@@ -131,12 +131,16 @@ export function useAssistant(store: ConversationStore) {
   }, [store, runResearch]);
 
   /** Maps a backend next action to a real call. Anything the UI cannot perform is reported, not faked. */
-  const runAction = useCallback((action: NextAction, options?: { useAi?: boolean }): ActionOutcome => {
+  const runAction = useCallback((action: NextAction, options?: { useAi?: boolean; question?: string }): ActionOutcome => {
     const payload = (action.payload ?? {}) as Record<string, unknown>;
     switch (action.action) {
       case "RESEARCH_PROBLEM":
         if (action.available === false || !payload.project) return "unsupported";
-        startResearch(payload as unknown as ResearchRequest, Boolean(options?.useAi));
+        {
+          const base = payload as unknown as ResearchRequest;
+          const question = options?.question?.trim();
+          startResearch(question ? { ...base, project: { ...base.project, problem: question } } : base, Boolean(options?.useAi));
+        }
         return "started";
       case "UPLOAD_FILE":
         return "needs_file";

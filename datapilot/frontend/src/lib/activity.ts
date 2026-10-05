@@ -129,10 +129,12 @@ export function traceFromResearch(r: ResearchResponse): TraceStep[] {
   if (r.status === "search_unavailable") return [...out, step("search", "Searched the web", "the search service is unavailable", "skipped")];
   out.push(step("search", "Searched the web", `${plural(s.results_retrieved, "result")} retrieved`));
   out.push(step("filter", "Kept academic sources", `${plural(s.papers_found, "paper")}${s.results_rejected_as_non_academic ? `, ${s.results_rejected_as_non_academic} non-academic dropped` : ""}`));
-  out.push(step("select", "Selected the most relevant", plural(s.papers_selected, "paper"), s.papers_selected ? "done" : "skipped"));
+  if ((r.gemini.assisted ?? []).includes("question")) out.push(step("ai-q", "AI read the question", "synonyms and context checked", "done"));
+  out.push(step("select", "Selected the most relevant", `${plural(s.papers_selected, "paper")}${s.excluded_off_topic ? `, ${s.excluded_off_topic} off-topic left out` : ""}`, s.papers_selected ? "done" : "skipped"));
+  if ((r.gemini.assisted ?? []).includes("relevance")) out.push(step("ai-r", "AI checked relevance", "each paper judged on its title and abstract", "done"));
   out.push(step("methods", "Compared methods", `${plural(r.methods.length, "method")} named in the retrieved text`, r.methods.length ? "done" : "skipped"));
   if (r.gemini.requested) {
-    out.push(step("ai", "AI interpretation", r.gemini.status === "used" ? "1 call, checked against the evidence" : r.gemini.note ?? r.gemini.status, r.gemini.status === "used" ? "done" : "skipped"));
+    out.push(step("ai", "AI interpretation", r.gemini.status === "used" ? "checked against the evidence" : r.gemini.note ?? r.gemini.status, r.gemini.status === "used" ? "done" : "skipped"));
   }
   return out;
 }

@@ -119,6 +119,17 @@ describe("ResearchOffer", () => {
     await user.click(screen.getByRole("button", { name: "Research this problem" }));
     expect(onRun).toHaveBeenCalledWith(true);
   });
+  it("lets the user correct the research question before running", async () => {
+    const onRun = vi.fn();
+    const user = userEvent.setup();
+    render(<ResearchOffer action={action({ payload: { project: { problem: "trafic" } } })} onRun={onRun} aiAvailable={false} busy={false} />);
+    const box = screen.getByLabelText("What should the papers be about?");
+    expect(box).toHaveValue("trafic");
+    await user.clear(box);
+    await user.type(box, "traffic volume");
+    await user.click(screen.getByRole("button", { name: "Research this problem" }));
+    expect(onRun).toHaveBeenCalledWith(false, "traffic volume");
+  });
   it("disables the AI option when no key is configured", () => {
     render(<ResearchOffer action={action()} onRun={() => undefined} aiAvailable={false} busy={false} />);
     expect(screen.getByRole("checkbox")).toBeDisabled();
