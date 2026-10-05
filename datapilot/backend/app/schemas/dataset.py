@@ -396,7 +396,7 @@ class DatasetCandidate(BaseModel):
         default_factory=list,
         description=(
             "Column names from a structured schema the registry published (for "
-            "example Hugging Face's dataset_info.features). Empty when the "
+            "example Hugging Face's dataset_info.features) or from the header row of the registry's main csv. Empty when the "
             "registry published none; prose that merely mentions columns is NOT "
             "recorded here."
         ),

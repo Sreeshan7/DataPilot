@@ -59,7 +59,11 @@ class ResearchDataset(BaseModel):
 class ResearchOptions(BaseModel):
     max_papers: int = Field(8, ge=1, le=15)
     min_year: Optional[int] = Field(None, ge=1950, le=2100)
-    use_ai: bool = False
+    use_ai: bool = Field(False, description="Add an AI-written interpretation of the evidence (one extra call).")
+    ai_assist: bool = Field(
+        True,
+        description="Let the AI understand the question and judge paper relevance (two small calls; falls back silently).",
+    )
 
 
 class ResearchRequest(BaseModel):
@@ -84,6 +88,9 @@ class Paper(BaseModel):
     abstract_snippet: Optional[str] = None
     citation_count: Optional[int] = Field(None, description="Never estimated; None when not retrieved.")
     matched_queries: list[str] = Field(default_factory=list)
+    matched_terms: list[str] = Field(default_factory=list, description="Subject words of the question found in the title/abstract.")
+    ai_relevance: Optional[int] = Field(None, ge=0, le=3, description="An AI model's 0-3 judgement of topical fit (not a fact about the paper).")
+    ai_reason: Optional[str] = None
     relevance_score: float = Field(0.0, ge=0.0, le=100.0)
     relevance_reason: str = ""
     score_components: dict[str, float] = Field(default_factory=dict)
@@ -162,7 +169,8 @@ class ProvenanceNote(BaseModel):
 
 class GeminiResearchUsage(BaseModel):
     requested: bool = False
-    calls_made: int = Field(0, ge=0, le=1)
+    calls_made: int = Field(0, ge=0, le=5)
+    assisted: list[str] = Field(default_factory=list, description="AI steps that helped before synthesis.")
     status: str = "not_requested"   # not_requested | used | rejected | failed | unavailable | disabled
     note: Optional[str] = None
 
@@ -173,7 +181,18 @@ class ResearchSummary(BaseModel):
     papers_found: int
     papers_selected: int
     results_rejected_as_non_academic: int = 0
+    excluded_off_topic: int = 0
     search_provider: str
+
+
+class Interpretation(BaseModel):
+    """How DataPilot understood the question, shown so the user can correct it."""
+
+    problem: Optional[str] = None
+    core_terms: list[str] = Field(default_factory=list)
+    context_terms: list[str] = Field(default_factory=list)
+    corrections: dict[str, str] = Field(default_factory=dict)
+    ai_assisted: bool = False
 
 
 class ResearchResponse(BaseModel):
@@ -182,6 +201,7 @@ class ResearchResponse(BaseModel):
     api_version: str = "v1"
     message: Optional[str] = Field(None, description="What is needed or what went wrong, in plain words.")
     queries: list[str] = Field(default_factory=list)
+    interpretation: Optional[Interpretation] = None
     research_summary: ResearchSummary
     datapilot_summary: str = ""
     papers: list[Paper] = Field(default_factory=list)

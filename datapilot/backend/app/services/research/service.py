@@ -15,6 +15,8 @@ from app.core.config import Settings, get_settings
 from app.core.logging_config import get_logger
 from app.schemas.research import (
     EvidenceKind,
+    GeminiResearchUsage,
+    Interpretation,
     ProvenanceNote,
     ResearchRequest,
     ResearchResponse,
@@ -25,14 +27,16 @@ from app.services.research import methods as method_tools
 from app.services.research.normalize import normalise
 from app.services.research.providers import ProviderError, ResearchProvider, SearchHit, WebSearchProvider
 from app.services.research.scholarly import ArxivProvider, CrossrefProvider, OpenAlexProvider
-from app.services.research.queries import build_queries, problem_phrase
+from app.services.research import assist
+from app.services.research.queries import QueryPlan, build_queries, understand
 from app.services.research.ranking import rank
 from app.services.research.recommend import recommend
 from app.services.research.synthesis import ResearchWriter, synthesise
 
 logger = get_logger(__name__)
 
-MIN_RELEVANCE = 15.0
+MIN_RELEVANCE = 30.0
+ASSIST_MIN_HEADROOM = 3  # leave calls for the rest of the app: assist only when the budget is comfortable
 
 
 MIN_PRIMARY_PAPERS = 3  # fewer than this from the scholarly indexes and the web search is tried as well
@@ -70,6 +74,7 @@ class ResearchService:
         summary = ResearchSummary(
             queries_used=len(queries), results_retrieved=kw.pop("retrieved", 0), papers_found=kw.pop("found", 0),
             papers_selected=len(kw.get("papers", [])), results_rejected_as_non_academic=kw.pop("rejected", 0),
+            excluded_off_topic=kw.pop("off_topic", 0),
             search_provider="+".join(used))
         return ResearchResponse(status=status, request_id=str(uuid.uuid4()), message=message, queries=queries,
                                 research_summary=summary, **kw)
@@ -112,11 +117,32 @@ class ResearchService:
 
     async def discover(self, request: ResearchRequest) -> ResearchResponse:
         s = self._settings
-        queries, why_not = build_queries(request.project, request.dataset, s.research_max_queries)
+        plan = understand(request.project, request.dataset)
+        assisted: list[str] = []
+        notes: list[str] = []
+        wants_assist = request.options.ai_assist and s.research_ai_assist_enabled and s.research_gemini_enabled
+        writer = self._research_writer() if wants_assist else None
+        can_assist = writer is not None and writer.is_configured and getattr(writer, "headroom", 99) >= ASSIST_MIN_HEADROOM
+        extra: list[str] = []
+        if plan.problem and can_assist:
+            understood, why = await assist.understand_question(writer, s, request.project, request.dataset, plan)
+            if understood:
+                plan.core_groups, plan.ai_assisted = understood.core_groups, True
+                plan.context_terms = understood.context_terms or plan.context_terms
+                plan.problem = understood.problem
+                extra = understood.queries[:2]
+                assisted.append("question")
+            elif why:
+                notes.append(f"AI question understanding skipped: {why}.")
+        queries, why_not = build_queries(request.project, request.dataset, s.research_max_queries, plan=plan)
         if not queries:
             return self._response(ResearchStatus.NEEDS_CLARIFICATION, why_not, [])
+        queries = list(dict.fromkeys(queries[: max(1, s.research_max_queries - len(extra))] + extra))
+        shown = Interpretation(problem=plan.problem, core_terms=plan.core_terms, context_terms=plan.context_terms,
+                               corrections=plan.corrections, ai_assisted=plan.ai_assisted)
         if not s.research_enabled:
-            return self._response(ResearchStatus.SEARCH_UNAVAILABLE, "Research is turned off on this server.", queries)
+            return self._response(ResearchStatus.SEARCH_UNAVAILABLE, "Research is turned off on this server.", queries,
+                                  interpretation=shown)
 
         errors: list[ProviderError] = []
         primary = [p for p in self._providers if not getattr(p, "fallback", False)]
@@ -132,18 +158,31 @@ class ResearchService:
             return self._response(
                 ResearchStatus.SEARCH_UNAVAILABLE,
                 f"{errors[0].message} No papers are shown, because none could be verified.", queries,
-                limitations=["Every literature source failed or was rate limited; try again in a moment."])
+                limitations=["Every literature source failed or was rate limited; try again in a moment."],
+                interpretation=shown)
 
         method_tools.annotate_methods(papers)
-        ranked = [p for p in rank(papers, request.project, request.dataset, min_year=request.options.min_year)
-                  if p.relevance_score >= MIN_RELEVANCE]
+        gated = rank(papers, request.project, request.dataset, min_year=request.options.min_year, plan=plan)
+        ranked = [p for p in gated if p.relevance_score >= MIN_RELEVANCE]
+        judge_ok = writer is not None and writer.is_configured and getattr(writer, "headroom", 99) >= ASSIST_MIN_HEADROOM - 1
+        if ranked and judge_ok:
+            judged, why = await assist.judge_relevance(writer, s, request.project, plan, ranked)
+            if judged:
+                ranked = self._apply_judgements(ranked, judged)
+                assisted.append("relevance")
+            elif why:
+                notes.append(f"AI relevance check skipped: {why}.")
+        off_topic = max(0, len(papers) - len(ranked))
         selected = ranked[: request.options.max_papers]
         if not selected:
             return self._response(
                 ResearchStatus.NO_RESULTS,
-                "The literature sources returned nothing that matched this problem well enough to show.",
-                queries, retrieved=len(hits), found=len(papers), rejected=rejected, used=used,
-                limitations=self._limitations(errors, request, 0))
+                "The literature sources returned nothing that was clearly about this problem, so nothing is shown "
+                "rather than showing loosely related papers. Try naming the subject more specifically.",
+                queries, retrieved=len(hits), found=len(papers), rejected=rejected, used=used, off_topic=off_topic,
+                limitations=self._limitations(errors, request, 0) + notes, interpretation=shown,
+                gemini=GeminiResearchUsage(requested=request.options.use_ai, calls_made=len(assisted),
+                                           assisted=assisted))
 
         methods = method_tools.aggregate_methods(selected)
         metrics = method_tools.extract_metrics(selected)
@@ -151,6 +190,8 @@ class ResearchService:
         interpretation, gemini = await synthesise(
             self._research_writer() if request.options.use_ai and s.research_gemini_enabled else None,
             s, request.project, request.dataset, selected, methods, metrics, requested=request.options.use_ai)
+        gemini.calls_made += len(assisted)
+        gemini.assisted = assisted
 
         provenance = [
             ProvenanceNote(source="+".join(used) or "search", evidence=EvidenceKind.WEB_VERIFIED,
@@ -164,14 +205,28 @@ class ResearchService:
                 note="The AI interpretation is inference over the retrieved evidence and is not verified literature."))
         return self._response(
             ResearchStatus.SUCCESS, None, queries, retrieved=len(hits), found=len(papers), rejected=rejected, used=used,
-            datapilot_summary=self._summary(selected, methods, request), papers=selected, methods=methods,
+            off_topic=off_topic, interpretation=shown,
+            datapilot_summary=self._summary(selected, methods, plan), papers=selected, methods=methods,
             benchmarks=metrics, algorithm_recommendations=recommendations, ai_interpretation=interpretation,
-            gemini=gemini, limitations=self._limitations(errors, request, len(selected)), provenance=provenance)
+            gemini=gemini, limitations=self._limitations(errors, request, len(selected)) + notes, provenance=provenance)
 
     @staticmethod
-    def _summary(papers, methods, request: ResearchRequest) -> str:
+    def _apply_judgements(ranked, judged):
+        """Drop papers the AI called unrelated (0) and, if enough remain, loosely related ones (1); order by AI fit."""
+        out = []
+        for p in ranked:
+            j = judged.get(p.id)
+            out.append(p.model_copy(update={"ai_relevance": j.relevance, "ai_reason": j.reason or None}) if j else p)
+        keep = [p for p in out if p.ai_relevance is None or p.ai_relevance >= 2]
+        if len(keep) < 3:
+            keep = [p for p in out if p.ai_relevance is None or p.ai_relevance >= 1]
+        keep.sort(key=lambda p: (-(p.ai_relevance if p.ai_relevance is not None else 1), -p.relevance_score, p.url))
+        return keep
+
+    @staticmethod
+    def _summary(papers, methods, plan: QueryPlan) -> str:
         top = ", ".join(f"{m.method} ({m.verified_paper_count})" for m in methods[:4])
-        problem = problem_phrase(request.project) or "this problem"
+        problem = plan.problem or "this problem"
         return (f"Found {len(papers)} academic sources about {problem}. "
                 + (f"Methods named most often in their retrieved text: {top}. " if top else
                    "Their retrieved text names no standard method. ")

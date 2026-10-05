@@ -216,7 +216,39 @@ class KaggleDatasetSource(DatasetSource):
         if isinstance(files, BaseException):
             logger.info("Kaggle file list unavailable for %s", ref)
             files = None
-        return apply_kaggle_detail(candidate, view, files)
+        enriched = apply_kaggle_detail(candidate, view, files)
+        return await self._with_header_columns(enriched, ref)
+
+    async def _with_header_columns(self, candidate: DatasetCandidate, ref: str) -> DatasetCandidate:
+        """Read the first few KB of the main csv so ranking sees the real column names.
+
+        Names come from the file's own header row, which Kaggle serves: they are not inferred. Only the head of the
+        file is read (never the dataset), and any failure just leaves the candidate without columns.
+        """
+        if candidate.columns or not (self._settings.external_peek_enabled and self._settings.kaggle_api_token):
+            return candidate
+        try:
+            from urllib.parse import quote
+
+            from app.services.dataset_analysis.external.fetcher import SafeFetcher
+            from app.services.dataset_analysis.external.peek import PEEK_BYTES, choose_file, sample_schema
+
+            name = choose_file(candidate.file_names)
+            if name is None:
+                return candidate
+            base = self._settings.kaggle_api_base_url.rstrip('/')
+            url = f"{base}/datasets/download/{ref}?fileName={quote(name, safe='')}"
+            async with self._acquire_client() as client:
+                raw, total = await SafeFetcher(self._settings, client).get_prefix(
+                    url, {"Authorization": f"Bearer {self._settings.kaggle_api_token}"}, max_bytes=PEEK_BYTES,
+                    storage_hosts=frozenset({"storage.googleapis.com"}))
+            sample = sample_schema(raw, total)
+        except Exception as exc:  # an optional extra: never fail the enrichment over it
+            logger.info("Kaggle header read skipped for %s: %s", ref, type(exc).__name__)
+            return candidate
+        if not sample:
+            return candidate
+        return candidate.model_copy(update={"columns": [c.name for c in sample.columns][:200]})
 
     # -- metadata ----------------------------------------------------------
 

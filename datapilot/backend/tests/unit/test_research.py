@@ -119,12 +119,12 @@ class TestQueries:
                                                      domain="education", task="classification"))
         assert why is None and 3 <= len(queries) <= 5
         assert queries[0] == '"student academic performance" machine learning'
-        assert all("attendance" not in q for q in queries)  # the inputs are not the problem
+        assert "attendance" not in queries[0]  # the inputs are not the problem; at most a context query names them
         assert len(set(queries)) == len(queries)
 
     def test_a_stated_problem_is_used_directly(self):
         queries, _ = build_queries(ResearchProject(problem="customer churn prediction", task="binary_classification"))
-        assert '"customer churn prediction" classification' in queries
+        assert '"customer churn" classification' in queries  # "prediction" is the task, not the subject
 
     def test_a_missing_task_still_works_and_adds_no_task_query(self):
         queries, why = build_queries(ResearchProject(problem="student performance prediction"))
@@ -240,10 +240,12 @@ class TestRankingAndMethods:
 
     def test_a_direct_match_outranks_an_unrelated_paper(self):
         order = [p.title for p in self.ranked()]
-        assert order.index("Predicting Student Academic Performance Using Machine Learning") < order.index("Unrelated paper on protein folding")
+        assert order and order[0].lower().startswith(("predicting student", "student academic"))
+        assert "Unrelated paper on protein folding" not in order  # the topic gate drops it outright
 
     def test_min_year_excludes_known_older_papers_but_keeps_unknown_years(self):
-        papers, _, _ = normalise(FIXTURE)
+        papers, _, _ = normalise(FIXTURE + [hit("Student academic performance models", "https://doi.org/10.1000/undated",
+                                                "Models of student academic performance.")])
         kept = rank(papers, ResearchProject(problem="student academic performance"), None, min_year=2024, today_year=2026)
         years = {p.publication_year for p in kept}
         assert 2023 not in years and None in years
@@ -456,7 +458,9 @@ class TestEndpointAndAssist:
         assert "/api/v1/research/discover" in self.client(monkeypatch).get("/openapi.json").json()["paths"]
 
     def test_assist_offers_research_but_never_runs_it(self, monkeypatch):
-        provider = FakeProvider()
+        provider = FakeProvider([
+            hit("Customer churn prediction with random forest", "https://arxiv.org/abs/2201.00001",
+                "Random Forest for customer churn classification in telecom.")])
         monkeypatch.setattr(research_api, "_service", ResearchService(settings(), provider))
         monkeypatch.setattr(analysis_api, "_service", DatasetAnalysisService(SETTINGS))
         monkeypatch.setattr(analysis_api, "_intelligence", ProjectIntelligenceService(SETTINGS))

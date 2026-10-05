@@ -17,6 +17,9 @@ if str(_backend_dir) not in sys.path:
 
 os.environ.setdefault("APP_ENV", "testing")
 os.environ.setdefault("LOG_LEVEL", "WARNING")
+# The test suite must never spend real Gemini quota: blank every key before settings are first read.
+os.environ["GEMINI_API_KEY"] = ""
+os.environ["GEMINI_API_KEY_2"] = ""
 
 from app.main import app
 from app.schemas.dataset import (

@@ -9,6 +9,7 @@ from google import genai
 from google.genai import types
 
 from app.core.config import Settings, get_settings
+from app.services.llm_pool import PooledClient, get_pool
 from app.core.logging_config import get_logger
 from app.prompts.project_ideas import PROJECT_IDEA_PROSE_SYSTEM_PROMPT
 from app.prompts.dataset_discovery import (
@@ -82,26 +83,25 @@ You must return structured data conforming to the LLMProjectAnalysis schema."""
 class LLMService:
     def __init__(self, settings: Optional[Settings] = None) -> None:
         self._settings = settings or get_settings()
-        self._client: Optional[genai.Client] = None
+        self._client: Optional[PooledClient] = None
         self._initialize_client()
 
     def _initialize_client(self) -> None:
-        api_key = self._settings.gemini_api_key
-        if not api_key:
-            logger.warning(
-                "GEMINI_API_KEY not configured. LLM calls will fail."
-            )
+        pool = get_pool(self._settings)
+        if not pool.configured:
+            logger.warning("GEMINI_API_KEY not configured. LLM calls will fail.")
             return
-        try:
-            self._client = genai.Client(api_key=api_key)
-            logger.info("Gemini client initialized (model=%s)", self._settings.gemini_model)
-        except Exception as exc:
-            logger.error("Failed to initialize Gemini client: %s", exc)
-            self._client = None
+        self._client = PooledClient(pool)  # every call spends the shared per-key budget
+        logger.info("Gemini client initialized (model=%s, keys=%d)", self._settings.gemini_model, pool.stats()["keys"])
 
     @property
     def is_configured(self) -> bool:
-        return self._client is not None and bool(self._settings.gemini_api_key)
+        return self._client is not None
+
+    @property
+    def headroom(self) -> int:
+        """How many calls the shared budget can still afford right now (0 when unconfigured)."""
+        return self._client.pool.headroom() if self._client else 0
 
     @retry_transient_unavailable
     async def analyze_project(
@@ -282,6 +282,33 @@ class LLMService:
                 message="An unexpected error occurred during dataset discovery.",
             ) from exc
 
+    async def generate_json_text(self, system: str, user: str, max_tokens: int = 1024) -> str:
+        """One Gemini call returning JSON text (the caller validates it). Spends the shared budget; never retried."""
+        if not self._client:
+            raise LLMServiceError(code="LLM_UNAVAILABLE", message="Gemini client is not configured. Check GEMINI_API_KEY.")
+        client, model = self._client, self._settings.gemini_model
+
+        def call():
+            return client.models.generate_content(
+                model=model, contents=user,
+                config=types.GenerateContentConfig(
+                    system_instruction=system, response_mime_type="application/json", temperature=0.0,
+                    max_output_tokens=max_tokens))
+
+        try:
+            response = await asyncio.to_thread(call)
+        except genai.errors.ClientError as exc:
+            error_str = str(exc).lower()
+            if "rate" in error_str or "quota" in error_str or "429" in error_str:
+                raise LLMServiceError(code="LLM_RATE_LIMITED", message="Gemini rate limit or quota exceeded.") from exc
+            raise LLMServiceError(code="LLM_UNAVAILABLE", message=f"Gemini API error: {type(exc).__name__}") from exc
+        except LLMServiceError:
+            raise
+        except Exception as exc:
+            logger.error("Unexpected Gemini JSON error: %s", type(exc).__name__)
+            raise LLMServiceError(code="LLM_UNAVAILABLE", message="An unexpected AI error occurred.") from exc
+        return response.text or ""
+
     async def search_grounded(self, prompt: str, system: str) -> tuple[str, list[tuple[str, str]]]:
         """One Gemini call with Google Search grounding. Returns (text, [(title, url)]) where the sources come from
         the search grounding metadata, never from the model's own text. Not retried: the free tier is small."""
@@ -308,6 +335,8 @@ class LLMService:
             raise LLMServiceError(code="LLM_UNAVAILABLE", message=f"Gemini API error: {type(exc).__name__}") from exc
         except TimeoutError as exc:
             raise LLMServiceError(code="LLM_TIMEOUT", message="Gemini request timed out.") from exc
+        except LLMServiceError:
+            raise
         except Exception as exc:
             logger.error("Unexpected Gemini grounded-search error: %s", type(exc).__name__)
             raise LLMServiceError(code="LLM_UNAVAILABLE", message="An unexpected error occurred during the web lookup.") from exc

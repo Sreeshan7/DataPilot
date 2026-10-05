@@ -231,6 +231,22 @@ algorithm recommendations -> optionally ONE Gemini call. Code: `services/researc
   are "not found in the snippet", never "absent"; queries are quoted phrases that can narrow results; years
   from snippets can be a mention rather than a publication date (labelled `web_verified`).
 
+## Research relevance + Gemini budget (2026-10-05)
+- **Cause of the off-topic papers:** garbled question ("trafic"), no rule that a paper must be about the subject, a
+  low cutoff (15) and explanation text that claimed relevance. Fixed in `research/queries.py` (`understand`: core
+  topics, context terms, reported typo corrections), `ranking.py` (topic gate: a paper must mention at least half the
+  core topics, any synonym counts; threshold 30; truthful `matched_terms` reasons) and `assist.py`.
+- **AI assist (`research/assist.py`):** two optional, validated Gemini calls: question understanding (core terms +
+  synonyms + queries, drift-checked) and ONE batch relevance judgement (0-3 per paper from title+snippet). Neither
+  can add papers/URLs; both fall back silently; skipped when pool headroom < 3. Setting `research_ai_assist_enabled`,
+  request option `ai_assist` (default on). Response adds `interpretation`, `excluded_off_topic`, per-paper
+  `matched_terms`/`ai_relevance`/`ai_reason`, `gemini.assisted`.
+- **Budget (`services/llm_pool.py`):** keys GEMINI_API_KEY and GEMINI_API_KEY_2, 8 RPM / 900 RPD per key, failover,
+  counts on `/ready`. Tests never use real keys (conftest blanks them).
+- **Discovery:** Kaggle enrichment now reads the header row of the main csv (head only) so ranking sees real columns.
+- **Frontend:** more spacious layout; editable research question; "Searched for ..." row, AI-fit badges, off-topic count.
+- **Live check:** the traffic question returns 8 traffic papers (2 AI calls). Tests: backend 2237+ passed, frontend 34.
+
 ## Defects found and fixed during Phases 4/5 (each has a regression test)
 
 Ingestion: blank rows in header lookahead; Excel error cells dropped a row; "none" erased as missing

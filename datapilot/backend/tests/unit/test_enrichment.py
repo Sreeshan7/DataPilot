@@ -252,9 +252,29 @@ class TestKaggleEnrich:
             seen,
         )
         await source.enrich(_listing())
-        assert len(seen) == 2
+        assert len(seen) == 3  # view, file list, and the header read of the main csv
+        assert seen[2].headers["range"].startswith("bytes=0-")  # only the head of the file, never the dataset
         assert all("KGAT_secret" not in str(r.url) for r in seen)
         assert all(r.headers["authorization"] == "Bearer KGAT_secret" for r in seen)
+
+    async def test_columns_come_from_the_csv_header_row(self):
+        csv = "\n".join(["Hour,Temp,Rain,Traffic_Volume", "1,10.5,0,500", "2,11.0,1,420", "3,9.5,0,610", ""]).encode()
+        source = _routed_source({
+            f"/datasets/view/{REF}": httpx.Response(200, json=VIEW),
+            f"/datasets/list/{REF}": httpx.Response(200, json=FILES),
+            f"/datasets/download/{REF}": httpx.Response(200, content=csv),
+        })
+        enriched = await source.enrich(_listing())
+        assert enriched.columns == ["Hour", "Temp", "Rain", "Traffic_Volume"]
+
+    async def test_a_failed_header_read_leaves_the_enrichment_intact(self):
+        source = _routed_source({
+            f"/datasets/view/{REF}": httpx.Response(200, json=VIEW),
+            f"/datasets/list/{REF}": httpx.Response(200, json=FILES),
+            f"/datasets/download/{REF}": httpx.Response(500),
+        })
+        enriched = await source.enrich(_listing())
+        assert enriched.columns == [] and enriched.metadata_depth.name != "LISTING"
 
     async def test_the_source_advertises_enrichment(self):
         assert _routed_source({}).supports_enrichment is True

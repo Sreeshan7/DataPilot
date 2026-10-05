@@ -15,6 +15,11 @@ class Settings(BaseSettings):
     )
 
     gemini_api_key: str = ""
+    #: A second key doubles the free-tier allowance; calls spread across both and fail over on 429/503.
+    gemini_api_key_2: str = ""
+    #: DataPilot stops itself below the published free-tier limits (per key).
+    gemini_requests_per_minute: int = 8
+    gemini_requests_per_day: int = 900
     gemini_model: str = "gemini-3.1-flash-lite"
     app_env: str = "development"
     log_level: str = "INFO"
@@ -146,6 +151,7 @@ class Settings(BaseSettings):
     # Optional "Research this problem" (web search only; Gemini is at most ONE synthesis call).
     research_enabled: bool = True
     research_gemini_enabled: bool = True
+    research_ai_assist_enabled: bool = True
     research_search_url: str = "https://html.duckduckgo.com/html/"
     research_timeout_seconds: float = 12.0
     research_max_queries: int = 5

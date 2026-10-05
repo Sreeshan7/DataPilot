@@ -340,6 +340,10 @@ class ReadyResponse(BaseModel):
     kaggle_credentials_present: bool = False
     kaggle_base_url: str = ""
     dataset_sources: list[str] = Field(default_factory=list)
+    gemini_keys: int = 0
+    gemini_calls_last_minute: int = 0
+    gemini_calls_today: int = 0
+    gemini_calls_available_now: int = 0
 
 
 # ---------------------------------------------------------------------------

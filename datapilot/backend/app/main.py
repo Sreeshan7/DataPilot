@@ -14,6 +14,7 @@ from app.api.v1.intent import router as intent_router
 from app.api.v1.project_analysis import router as project_analysis_router
 from app.api.v1.research import router as research_router
 from app.core.config import get_settings
+from app.services.llm_pool import get_pool
 from app.core.logging_config import get_logger, setup_logging
 from app.schemas.project import ErrorCode, ErrorDetail, ErrorResponse, HealthResponse, ReadyResponse
 from app.services.datasets import build_default_sources
@@ -92,8 +93,14 @@ def create_app() -> FastAPI:
     @app.get("/ready", response_model=ReadyResponse, tags=["Health"])
     async def readiness_check() -> ReadyResponse:
         settings = get_settings()
+        pool = get_pool(settings)
+        usage = pool.stats()
         return ReadyResponse(
-            gemini_configured=bool(settings.gemini_api_key),
+            gemini_configured=pool.configured,
+            gemini_keys=usage["keys"],
+            gemini_calls_last_minute=usage["calls_last_minute"],
+            gemini_calls_today=usage["calls_today"],
+            gemini_calls_available_now=pool.headroom(),
             dictionary_loaded=_keyword_service is not None,
             model=settings.gemini_model,
             kaggle_configured=bool(settings.kaggle_enabled),
