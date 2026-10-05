@@ -159,6 +159,8 @@ class Settings(BaseSettings):
     research_enabled: bool = True
     research_gemini_enabled: bool = True
     research_ai_assist_enabled: bool = True
+    research_deep_analysis_enabled: bool = True   # per-paper and per-algorithm in-depth analysis (two parallel AI calls)
+    research_deep_analysis_papers: int = 6
     research_fulltext_enabled: bool = True        # read open-access PDFs of the top papers
     research_fulltext_papers: int = 4
     research_fulltext_max_bytes: int = 4_000_000

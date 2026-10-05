@@ -297,6 +297,40 @@ export interface components {
             /** License */
             license?: string | null;
         };
+        /**
+         * AlgorithmAnalysis
+         * @description A profile of one algorithm: general knowledge, how the papers used it, and how it fits the user's data.
+         */
+        AlgorithmAnalysis: {
+            /** What It Is */
+            what_it_is: string;
+            /** How Literature Used It */
+            how_literature_used_it?: components["schemas"]["PaperUse"][];
+            /** Strengths */
+            strengths?: string[];
+            /** Weaknesses */
+            weaknesses?: string[];
+            /** Preprocessing */
+            preprocessing?: string[];
+            /** Tuning */
+            tuning?: string[];
+            /**
+             * Fit For Your Data
+             * @default
+             */
+            fit_for_your_data: string;
+            /**
+             * Source
+             * @description datapilot_knowledge | ai_inferred
+             * @default datapilot_knowledge
+             */
+            source: string;
+            /**
+             * Ai Enriched
+             * @default false
+             */
+            ai_enriched: boolean;
+        };
         /** AlgorithmRecommendation */
         AlgorithmRecommendation: {
             /** Rank */
@@ -313,6 +347,7 @@ export interface components {
             why: string;
             /** Cautions */
             cautions?: string[];
+            analysis?: components["schemas"]["AlgorithmAnalysis"] | null;
         };
         /**
          * AlternativeDataset
@@ -2318,6 +2353,7 @@ export interface components {
              * @description How much of the paper's own text was read (first pages), if any.
              */
             full_text_chars?: number | null;
+            analysis?: components["schemas"]["PaperAnalysis"] | null;
             /**
              * Paper Type
              * @description survey | applied | method: read from the title/abstract wording.
@@ -2368,6 +2404,55 @@ export interface components {
             verification_status: string;
             /** Evidence */
             evidence?: components["schemas"]["EvidenceKind"][];
+        };
+        /**
+         * PaperAnalysis
+         * @description What a paper did, from its own text. Every finding and limitation carries a verified verbatim quote.
+         */
+        PaperAnalysis: {
+            /** Problem */
+            problem?: string | null;
+            /** Data Used */
+            data_used?: string | null;
+            /** Approach */
+            approach?: string | null;
+            /** Findings */
+            findings?: components["schemas"]["PaperFinding"][];
+            /** Limitations */
+            limitations?: components["schemas"]["PaperFinding"][];
+            /**
+             * Relevance
+             * @description An AI model's view of how the paper helps this project (inference, not a paper fact).
+             */
+            relevance?: string | null;
+            /**
+             * Basis
+             * @description abstract | full_text: what the analysis was read from.
+             * @default abstract
+             */
+            basis: string;
+            /**
+             * Source
+             * @default ai_inferred
+             */
+            source: string;
+        };
+        /**
+         * PaperFinding
+         * @description A statement about a paper plus the exact words it rests on (verified to be in the text that was read).
+         */
+        PaperFinding: {
+            /** Statement */
+            statement: string;
+            /** Quote */
+            quote: string;
+        };
+        /** PaperUse */
+        PaperUse: {
+            /** Paper Id */
+            paper_id: string;
+            /** Note */
+            note: string;
         };
         /** ProblemTypeInfo */
         ProblemTypeInfo: {
@@ -2811,6 +2896,26 @@ export interface components {
          * @enum {string}
          */
         RecommendationOutcome: "recommended" | "tentative" | "none";
+        /** RecommendedApproach */
+        RecommendedApproach: {
+            /** Summary */
+            summary: string;
+            /** Baseline */
+            baseline: string;
+            /** Primary */
+            primary: string;
+            /** Stretch */
+            stretch?: string | null;
+            /** Steps */
+            steps?: string[];
+            /** Caveats */
+            caveats?: string[];
+            /**
+             * Source
+             * @default datapilot_knowledge
+             */
+            source: string;
+        };
         /**
          * RecommendedDataset
          * @description The single dataset DataPilot puts forward, with the evidence behind it.
@@ -2993,6 +3098,7 @@ export interface components {
             benchmarks?: components["schemas"]["ReportedMetric"][];
             /** Algorithm Recommendations */
             algorithm_recommendations?: components["schemas"]["AlgorithmRecommendation"][];
+            approach?: components["schemas"]["RecommendedApproach"] | null;
             ai_interpretation?: components["schemas"]["AIInterpretation"] | null;
             gemini?: components["schemas"]["GeminiResearchUsage"];
             /** Limitations */

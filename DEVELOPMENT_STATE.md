@@ -415,3 +415,19 @@ both benchmark scripts (metrics above must not move unexpectedly); for registry/
   overridden by the model and flagged columns it omits are added back. Labelled `ai_inferred` / "AI-written plan".
 - UI: full-width idea cards; "Research this project" sits below the plan.
 - Tests: backend 2328, frontend 47. Live on a generated traffic file and on the churn sample: plans passed validation.
+
+## In-depth paper and algorithm analysis (2026-10-06)
+- **Algorithms (`research/knowledge.py`, `research/deepdive.py`):** every recommended algorithm carries an `analysis`: what it is,
+  strengths, weaknesses, how to prepare the data, what to tune (a built-in knowledge base of 22 methods, no AI needed), how the
+  retrieved papers used it (with any reported figure, in its own setting) and how it fits the user's dataset (size/columns/task).
+  `approach` gives baseline -> main model -> contrasting model with ordered steps and caveats (deterministic, or AI-written).
+- **Papers:** a second AI layer reads each top paper (abstract + the cue sentences of the open-access text where it was read)
+  and returns problem, data used, approach, findings and stated limits. Grounding: every finding/limit needs an EXACT quote that
+  is verified to occur in the text that was shown, the quote must actually support the statement (shared content words), and a
+  number in a statement must appear in its quote. Anything unverifiable is dropped; "relevance to your project" is labelled
+  as an AI view. First live run exposed an unsupported claim (real quote, wrong claim) -> `supports()` check added.
+- **Algorithm AI:** relates each algorithm to the papers and the dataset; paper references must be papers that mention that
+  algorithm, numbers in notes must be in that paper's excerpt, backticked columns must be real; fewer than 2 valid list items keep
+  the knowledge-base text. Two parallel calls (setting `research_deep_analysis_enabled`, `..._papers` = 6); skipped when headroom < 3.
+- UI: Recommended approach card, comparison table, per-algorithm full analysis, per-paper analysis with quotes.
+- Tests: backend 2348, frontend 50.

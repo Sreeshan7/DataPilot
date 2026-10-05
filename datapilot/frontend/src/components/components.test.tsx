@@ -246,3 +246,60 @@ describe("Project blueprint card", () => {
     expect(screen.getByRole("button", { name: /How to build it/ })).toHaveAttribute("aria-expanded", "false");
   });
 });
+
+describe("In-depth research analysis", () => {
+  const base = {
+    status: "success", queries: [], limitations: [], provenance: [], methods: [], benchmarks: [{ metric: "accuracy", value: "93.2%", method: "Random Forest", paper_id: "p1", paper_title: "T", url: "https://x.org", statement: "s", evidence: "web_verified" }],
+    research_summary: { queries_used: 1, results_retrieved: 1, papers_found: 1, papers_selected: 1, results_rejected_as_non_academic: 0, excluded_off_topic: 0, search_provider: "x" },
+    datapilot_summary: "Found 1 source.", gemini: { requested: false, calls_made: 0, assisted: [], status: "not_requested" },
+    papers: [{
+      id: "p1", title: "Traffic volume with random forest", url: "https://arxiv.org/abs/2101.00001", source: "arxiv.org", methods: [], matched_terms: [], relevance_score: 80, relevance_reason: "r",
+      score_components: {}, evidence: [], matched_queries: [], retrieval_status: "snippet_only", verification_status: "web_verified",
+      analysis: {
+        problem: "Predict hourly traffic volume.", data_used: "I-94 highway data.", approach: "Compared regression models.", basis: "abstract", source: "ai_inferred",
+        findings: [{ statement: "Random forest was the most accurate.", quote: "RF demonstrated the highest accuracy" }],
+        limitations: [{ statement: "Lacks environmental constraints.", quote: "lack sufficient environmental constraints" }],
+        relevance: "Shows which models to compare.",
+      },
+    }],
+    algorithm_recommendations: [
+      { rank: 1, method: "Random Forest", literature_support: "strong", dataset_compatibility: "strong", evidence_paper_count: 1, paper_ids: ["p1"], why: "w", cautions: [],
+        analysis: { what_it_is: "An ensemble of trees.", fit_for_your_data: "With 3,000 rows it suits `hour` and `rain_mm`.", strengths: ["Robust"], weaknesses: ["Cannot extrapolate"], preprocessing: ["Encode categories"], tuning: ["`n_estimators`"],
+          how_literature_used_it: [{ paper_id: "p1", note: "Reached an accuracy of 93.2%." }], source: "ai_inferred", ai_enriched: true } },
+      { rank: 2, method: "Linear Regression", literature_support: "limited", dataset_compatibility: "strong", evidence_paper_count: 1, paper_ids: [], why: "w", cautions: [],
+        analysis: { what_it_is: "A weighted sum.", fit_for_your_data: "A fast baseline.", strengths: ["Simple"], weaknesses: ["Linear"], preprocessing: [], tuning: [], how_literature_used_it: [], source: "datapilot_knowledge", ai_enriched: false } },
+    ],
+    approach: { summary: "Start linear, then a forest.", baseline: "Linear Regression", primary: "Random Forest", stretch: "XGBoost", steps: ["Clean the data.", "Fit the baseline."], caveats: ["Paper figures do not transfer."], source: "ai_inferred" },
+  } as never;
+
+  it("shows the recommended approach, a comparison table and per-algorithm analysis", () => {
+    render(<ResearchResult data={base} />);
+    expect(screen.getByText("Recommended approach")).toBeInTheDocument();
+    expect(screen.getByText("Start linear, then a forest.")).toBeInTheDocument();
+    expect(screen.getByText("Algorithm analysis")).toBeInTheDocument();
+    expect(screen.getByText(/in its own setting/)).toBeInTheDocument();      // the comparison table's reported figure
+    expect(screen.getByText("AI-refined")).toBeInTheDocument();
+    expect(screen.getByText(/With 3,000 rows it suits/)).toBeInTheDocument();
+    expect(screen.getByText("Cannot extrapolate")).toBeInTheDocument();      // the first algorithm's full analysis is open
+    expect(screen.getByText(/Traffic volume with random forest/, { selector: "span" })).toBeInTheDocument(); // paper titles resolve in the notes
+  });
+
+  it("shows each paper's analysis with the exact quotes its findings rest on", () => {
+    render(<ResearchResult data={base} />);
+    expect(screen.getByText("Analysis of this paper")).toBeInTheDocument();
+    expect(screen.getByText("Predict hourly traffic volume.")).toBeInTheDocument();
+    expect(screen.getByText("Random forest was the most accurate.")).toBeInTheDocument();
+    expect(screen.getByText(/RF demonstrated the highest accuracy/)).toBeInTheDocument();
+    expect(screen.getByText("AI view")).toBeInTheDocument();                 // the relevance line is labelled as inference
+  });
+
+  it("still renders when a response has no analysis at all (older server or no AI)", () => {
+    const bare = JSON.parse(JSON.stringify(base));
+    bare.approach = undefined;
+    bare.papers[0].analysis = undefined;
+    bare.algorithm_recommendations.forEach((r: { analysis?: unknown }) => { r.analysis = undefined; });
+    render(<ResearchResult data={bare as never} />);
+    expect(screen.queryByText("Recommended approach")).toBeNull();
+    expect(screen.getByText("Traffic volume with random forest")).toBeInTheDocument();
+  });
+});

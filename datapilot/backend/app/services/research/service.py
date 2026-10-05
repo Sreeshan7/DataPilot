@@ -28,10 +28,10 @@ from app.services.research import methods as method_tools
 from app.services.research.normalize import normalise
 from app.services.research.providers import ProviderError, ResearchProvider, SearchHit, WebSearchProvider
 from app.services.research.scholarly import ArxivProvider, CrossrefProvider, OpenAlexProvider, SemanticScholarProvider
-from app.services.research import assist
+from app.services.research import assist, deepdive
 from app.services.research.fulltext import apply_full_text, read_full_text
 from app.services.research.progress import Progress
-from app.services.research.queries import QueryPlan, build_queries, check_dataset, understand
+from app.services.research.queries import QueryPlan, build_queries, check_dataset, task_word, understand
 from app.services.research.ranking import rank
 from app.services.research.recommend import recommend
 from app.services.research.synthesis import ResearchWriter, synthesise
@@ -142,6 +142,8 @@ class ResearchService:
         if can_assist:
             steps.append(("ai-relevance", "AI is reading titles and abstracts"))
         steps += [("methods", "Comparing methods and reported results"), ("recommend", "Matching methods to your task")]
+        if can_assist and s.research_deep_analysis_enabled:
+            steps.append(("analysis", "Analysing the papers and algorithms in depth"))
         if request.options.use_ai and s.research_gemini_enabled:
             steps.append(("synthesis", "Writing the AI interpretation"))
         steps.append(("finish", "Preparing your findings"))
@@ -253,6 +255,32 @@ class ResearchService:
         await pg.start("recommend")
         recommendations = recommend(methods, request.project, request.dataset)
         await pg.done("recommend", f"{len(recommendations)} ranked")
+        # In-depth analysis. DataPilot's own (knowledge base) analysis is always attached; two parallel AI calls refine it.
+        task = plan.task or task_word(request.project.task) or (task_word(request.dataset.task) if request.dataset else None)
+        paper_map = {p.id: p for p in selected}
+        profiles = {r.method: deepdive.deterministic_algorithm_analysis(r, task, request.dataset, paper_map, metrics) for r in recommendations}
+        approach = deepdive.deterministic_approach(recommendations, task, request.dataset)
+        deep_ai = (can_assist and s.research_deep_analysis_enabled and recommendations
+                   and getattr(writer, "headroom", 99) >= ASSIST_MIN_HEADROOM)
+        paper_analyses: dict = {}
+        ai_algorithms: dict = {}
+        if deep_ai:
+            await pg.start("analysis", detail=f"{min(len(selected), s.research_deep_analysis_papers)} papers, {len(recommendations)} algorithms")
+            view = deepdive._project_view(request.project, request.dataset, plan.problem, plan.outcome)
+            (paper_analyses, _), (ai_algorithms, ai_approach) = await asyncio.gather(
+                deepdive.analyze_papers(writer, s, view, selected, texts),
+                deepdive.analyze_algorithms(writer, s, view, recommendations, profiles, selected, texts, request.dataset))
+            approach = ai_approach or approach
+            if paper_analyses:
+                assisted.append("paper_analysis")
+            if ai_algorithms or ai_approach:
+                assisted.append("algorithm_analysis")
+            await (pg.done("analysis", f"{len(paper_analyses)} papers and {len(ai_algorithms)} algorithms analysed")
+                   if paper_analyses or ai_algorithms else pg.skip("analysis", "used DataPilot's own analysis"))
+            if not (paper_analyses or ai_algorithms):
+                notes.append("AI in-depth analysis was unavailable or did not pass validation; DataPilot's own algorithm profiles are shown.")
+        recommendations = [r.model_copy(update={"analysis": ai_algorithms.get(r.method, profiles[r.method])}) for r in recommendations]
+        selected = [p.model_copy(update={"analysis": paper_analyses[p.id]}) if p.id in paper_analyses else p for p in selected]
         if request.options.use_ai and s.research_gemini_enabled:
             await pg.start("synthesis")
         interpretation, gemini = await synthesise(
@@ -283,7 +311,7 @@ class ResearchService:
             ResearchStatus.SUCCESS, None, queries, retrieved=len(hits), found=len(papers), rejected=rejected, used=used,
             off_topic=off_topic, interpretation=shown,
             datapilot_summary=self._summary(selected, methods, plan), papers=selected, methods=methods,
-            benchmarks=metrics, algorithm_recommendations=recommendations, ai_interpretation=interpretation,
+            benchmarks=metrics, algorithm_recommendations=recommendations, approach=approach, ai_interpretation=interpretation,
             gemini=gemini, limitations=self._limitations(errors, request, len(selected), len(texts)) + notes, provenance=provenance)
 
     @staticmethod

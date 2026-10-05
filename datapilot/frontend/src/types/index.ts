@@ -45,6 +45,7 @@ export type ProjectCompatibility = DeepRequired<S["ProjectCompatibility"]>;
 export type ResearchRequest = S["ResearchRequest"];
 export type ResearchResponse = DeepRequired<S["ResearchResponse"]>;
 export type Paper = DeepRequired<S["Paper"]>;
+export type RecommendedApproach = DeepRequired<S["RecommendedApproach"]>;
 export type MethodSupport = DeepRequired<S["MethodSupport"]>;
 export type ReportedMetric = DeepRequired<S["ReportedMetric"]>;
 export type AlgorithmRecommendation = DeepRequired<S["AlgorithmRecommendation"]>;

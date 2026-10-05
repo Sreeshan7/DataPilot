@@ -76,6 +76,26 @@ class ResearchRequest(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+class PaperFinding(BaseModel):
+    """A statement about a paper plus the exact words it rests on (verified to be in the text that was read)."""
+
+    statement: str
+    quote: str
+
+
+class PaperAnalysis(BaseModel):
+    """What a paper did, from its own text. Every finding and limitation carries a verified verbatim quote."""
+
+    problem: Optional[str] = None
+    data_used: Optional[str] = None
+    approach: Optional[str] = None
+    findings: list[PaperFinding] = Field(default_factory=list)
+    limitations: list[PaperFinding] = Field(default_factory=list)
+    relevance: Optional[str] = Field(None, description="An AI model's view of how the paper helps this project (inference, not a paper fact).")
+    basis: str = Field("abstract", description="abstract | full_text: what the analysis was read from.")
+    source: str = "ai_inferred"
+
+
 class Paper(BaseModel):
     id: str
     title: str
@@ -90,6 +110,7 @@ class Paper(BaseModel):
     citation_count: Optional[int] = Field(None, description="Never estimated; None when not retrieved.")
     open_access_url: Optional[str] = Field(None, description="A link to an open-access PDF, only when the index states one.")
     full_text_chars: Optional[int] = Field(None, description="How much of the paper's own text was read (first pages), if any.")
+    analysis: Optional[PaperAnalysis] = None
     paper_type: Optional[str] = Field(None, description="survey | applied | method: read from the title/abstract wording.")
     matched_queries: list[str] = Field(default_factory=list)
     matched_terms: list[str] = Field(default_factory=list, description="Subject words of the question found in the title/abstract.")
@@ -142,6 +163,35 @@ class Level(str, Enum):
     UNKNOWN = "unknown"
 
 
+class PaperUse(BaseModel):
+    paper_id: str
+    note: str
+
+
+class AlgorithmAnalysis(BaseModel):
+    """A profile of one algorithm: general knowledge, how the papers used it, and how it fits the user's data."""
+
+    what_it_is: str
+    how_literature_used_it: list[PaperUse] = Field(default_factory=list)
+    strengths: list[str] = Field(default_factory=list)
+    weaknesses: list[str] = Field(default_factory=list)
+    preprocessing: list[str] = Field(default_factory=list)
+    tuning: list[str] = Field(default_factory=list)
+    fit_for_your_data: str = ""
+    source: str = Field("datapilot_knowledge", description="datapilot_knowledge | ai_inferred")
+    ai_enriched: bool = False
+
+
+class RecommendedApproach(BaseModel):
+    summary: str
+    baseline: str
+    primary: str
+    stretch: Optional[str] = None
+    steps: list[str] = Field(default_factory=list)
+    caveats: list[str] = Field(default_factory=list)
+    source: str = "datapilot_knowledge"
+
+
 class AlgorithmRecommendation(BaseModel):
     rank: int = Field(..., ge=1)
     method: str
@@ -151,6 +201,7 @@ class AlgorithmRecommendation(BaseModel):
     paper_ids: list[str] = Field(default_factory=list)
     why: str
     cautions: list[str] = Field(default_factory=list)
+    analysis: Optional[AlgorithmAnalysis] = None
 
 
 class AIInterpretation(BaseModel):
@@ -173,7 +224,7 @@ class ProvenanceNote(BaseModel):
 
 class GeminiResearchUsage(BaseModel):
     requested: bool = False
-    calls_made: int = Field(0, ge=0, le=5)
+    calls_made: int = Field(0, ge=0, le=8)
     assisted: list[str] = Field(default_factory=list, description="AI steps that helped before synthesis.")
     status: str = "not_requested"   # not_requested | used | rejected | failed | unavailable | disabled
     note: Optional[str] = None
@@ -225,6 +276,7 @@ class ResearchResponse(BaseModel):
     methods: list[MethodSupport] = Field(default_factory=list)
     benchmarks: list[ReportedMetric] = Field(default_factory=list)
     algorithm_recommendations: list[AlgorithmRecommendation] = Field(default_factory=list)
+    approach: Optional[RecommendedApproach] = None
     ai_interpretation: Optional[AIInterpretation] = None
     gemini: GeminiResearchUsage = Field(default_factory=GeminiResearchUsage)
     limitations: list[str] = Field(default_factory=list)
