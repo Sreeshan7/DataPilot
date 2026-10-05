@@ -17,6 +17,11 @@ class NextAction(BaseModel):
     description: str
     endpoint: Optional[str] = None
     payload: dict[str, Any] = Field(default_factory=dict)
+    # Optional richer contract for actions a UI can render directly (e.g. "Research this problem").
+    id: Optional[str] = None
+    label: Optional[str] = None
+    available: Optional[bool] = None
+    reason: Optional[str] = None
 
 
 class DatasetAnalysisResponse(BaseModel):

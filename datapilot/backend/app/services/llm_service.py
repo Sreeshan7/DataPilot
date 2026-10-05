@@ -17,7 +17,9 @@ from app.prompts.dataset_discovery import (
 )
 from app.schemas.dataset import LLMDatasetDiscovery
 from app.schemas.project import LLMProjectAnalysis, ProjectAnalysisData
+from app.prompts.research import RESEARCH_SYNTHESIS_SYSTEM_PROMPT
 from app.schemas.project_intelligence import LLMIdeaProseSet
+from app.schemas.research import LLMResearchSynthesis
 
 logger = get_logger(__name__)
 
@@ -279,6 +281,47 @@ class LLMService:
                 code="LLM_UNAVAILABLE",
                 message="An unexpected error occurred during dataset discovery.",
             ) from exc
+
+    async def generate_research_synthesis(self, user_prompt: str) -> LLMResearchSynthesis:
+        """The single structured call that interprets retrieved research evidence.
+
+        Deliberately NOT wrapped in ``retry_transient_unavailable``: the free tier allows one call, and a
+        transient failure degrades to the verified literature instead of spending more quota.
+
+        The prompt carries only normalised evidence (built by ``prompts/research.py``). The reply is
+        untrusted and validated by the caller. Raises ``LLMServiceError`` on any failure.
+        """
+        if not self._client:
+            raise LLMServiceError(code="LLM_UNAVAILABLE", message="Gemini client is not configured. Check GEMINI_API_KEY.")
+        try:
+            response = self._client.models.generate_content(
+                model=self._settings.gemini_model,
+                contents=user_prompt,
+                config=types.GenerateContentConfig(
+                    system_instruction=RESEARCH_SYNTHESIS_SYSTEM_PROMPT,
+                    response_mime_type="application/json",
+                    response_schema=LLMResearchSynthesis,
+                    temperature=0.2,
+                    max_output_tokens=3072,
+                ),
+            )
+            if response.parsed is None:
+                raise LLMServiceError(code="LLM_INVALID_RESPONSE", message="Gemini returned an empty or unparsable research response.")
+            return response.parsed
+        except genai.errors.ClientError as exc:
+            error_str = str(exc).lower()
+            if "api key" in error_str or "auth" in error_str or "permission" in error_str:
+                raise LLMServiceError(code="LLM_AUTHENTICATION_ERROR", message="Gemini authentication failed. Check GEMINI_API_KEY.") from exc
+            if "rate" in error_str or "quota" in error_str or "429" in error_str:
+                raise LLMServiceError(code="LLM_RATE_LIMITED", message="Gemini rate limit or quota exceeded.") from exc
+            raise LLMServiceError(code="LLM_UNAVAILABLE", message=f"Gemini API error: {type(exc).__name__}") from exc
+        except TimeoutError as exc:
+            raise LLMServiceError(code="LLM_TIMEOUT", message="Gemini request timed out.") from exc
+        except LLMServiceError:
+            raise
+        except Exception as exc:
+            logger.error("Unexpected Gemini research error: %s", type(exc).__name__)
+            raise LLMServiceError(code="LLM_UNAVAILABLE", message="An unexpected error occurred during research synthesis.") from exc
 
     @retry_transient_unavailable
     async def generate_project_idea_prose(self, user_prompt: str) -> LLMIdeaProseSet:

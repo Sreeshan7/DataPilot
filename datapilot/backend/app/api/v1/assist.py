@@ -20,6 +20,7 @@ from app.schemas.assist import AssistResponse, AssistStatus
 from app.schemas.routing import IntentRequest, UserIntent
 from app.services.dataset_analysis.service import AnalysisRequest
 from app.services.routing import IntentRouter
+from app.services.research import offer as research_offer
 from app.services.routing import transitions
 
 logger = get_logger(__name__)
@@ -133,7 +134,8 @@ async def assist(
                 if count else "DataPilot found no matching datasets for that project."
             ),
             discovery=discovery,
-            next_actions=transitions.after_discovery([r.dataset for r in discovery.recommendations]),
+            next_actions=transitions.after_discovery([r.dataset for r in discovery.recommendations])
+            + [research_offer.offer_from_requirements(project_goal or message, discovery.project_requirements)],
         )
     finally:
         if file is not None:

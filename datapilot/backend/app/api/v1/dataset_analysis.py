@@ -20,6 +20,7 @@ from app.core.logging_config import get_logger
 from app.schemas.analysis_response import DatasetAnalysisResponse
 from app.schemas.project import ErrorCode, ErrorDetail, ErrorResponse
 from app.services.dataset_analysis import narrative
+from app.services.research import offer as research_offer
 from app.services.routing import transitions
 from app.services.dataset_analysis.errors import AnalysisError
 from app.services.dataset_analysis.service import AnalysisRequest, DatasetAnalysisService
@@ -101,6 +102,8 @@ async def execute_analysis(
     if (intelligence is not None and intelligence.compatibility is not None
             and intelligence.compatibility.suggests_alternative_dataset and goal):
         actions.append(transitions.alternative_dataset_action(goal, intelligence.compatibility))
+    # Research is only OFFERED here; it runs when the user selects it (POST /api/v1/research/discover).
+    actions.append(research_offer.offer_from_analysis(analysis, intelligence, goal))
     return DatasetAnalysisResponse(
         request_id=request_id,
         headline=narrative.headline(analysis),

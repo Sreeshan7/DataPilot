@@ -138,6 +138,17 @@ class Settings(BaseSettings):
     analysis_gemini_enabled: bool = True
     analysis_gemini_max_columns: int = 60
 
+    # Optional "Research this problem" (web search only; Gemini is at most ONE synthesis call).
+    research_enabled: bool = True
+    research_gemini_enabled: bool = True
+    research_search_url: str = "https://html.duckduckgo.com/html/"
+    research_timeout_seconds: float = 12.0
+    research_max_queries: int = 5
+    research_results_per_query: int = 10
+    research_query_delay_seconds: float = 1.0   # the keyless endpoint rate-limits bursts
+    research_rate_limit_retry_seconds: float = 3.0
+    research_max_response_bytes: int = 1_000_000
+
     # --- Phase 2: deterministic ranking weights ----------------------------
     # Three groups, and the split is the point: requirement factors own 70 of the
     # 100 points, publisher-side signals own 15, trust owns 15. Relevance

@@ -12,6 +12,7 @@ from app.api.v1.dataset_analysis import router as dataset_analysis_router
 from app.api.v1.datasets import router as datasets_router
 from app.api.v1.intent import router as intent_router
 from app.api.v1.project_analysis import router as project_analysis_router
+from app.api.v1.research import router as research_router
 from app.core.config import get_settings
 from app.core.logging_config import get_logger, setup_logging
 from app.schemas.project import ErrorCode, ErrorDetail, ErrorResponse, HealthResponse, ReadyResponse
@@ -82,6 +83,7 @@ def create_app() -> FastAPI:
     app.include_router(dataset_analysis_router, prefix=settings.api_v1_prefix)
     app.include_router(intent_router, prefix=settings.api_v1_prefix)
     app.include_router(assist_router, prefix=settings.api_v1_prefix)
+    app.include_router(research_router, prefix=settings.api_v1_prefix)
 
     @app.get("/health", response_model=HealthResponse, tags=["Health"])
     async def health_check() -> HealthResponse:
