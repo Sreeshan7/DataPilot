@@ -1,0 +1,97 @@
+@import "@fontsource-variable/inter";
+@import "@fontsource-variable/jetbrains-mono";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Design tokens (HSL channels). Dark is the default; light is a pure token swap. */
+:root,
+[data-theme="dark"] {
+  --background: 225 16% 7%;
+  --surface: 225 14% 10%;
+  --raised: 225 13% 13%;
+  --foreground: 216 22% 94%;
+  --muted: 225 12% 16%;
+  --muted-foreground: 218 10% 64%;
+  --subtle: 220 9% 46%;
+  --border: 225 11% 19%;
+  --ring: 172 66% 52%;
+  --accent: 172 66% 52%;
+  --accent-foreground: 175 80% 8%;
+  --accent-soft: 172 50% 16%;
+  --success: 152 56% 50%;
+  --warning: 38 92% 56%;
+  --danger: 358 78% 64%;
+  --info: 210 90% 66%;
+  color-scheme: dark;
+}
+[data-theme="light"] {
+  --background: 40 20% 98%;
+  --surface: 0 0% 100%;
+  --raised: 40 14% 96%;
+  --foreground: 225 22% 10%;
+  --muted: 40 12% 93%;
+  --muted-foreground: 225 8% 40%;
+  --subtle: 225 6% 56%;
+  --border: 40 10% 86%;
+  --ring: 175 78% 30%;
+  --accent: 175 78% 30%;
+  --accent-foreground: 0 0% 100%;
+  --accent-soft: 172 55% 90%;
+  --success: 152 62% 32%;
+  --warning: 32 90% 40%;
+  --danger: 358 66% 46%;
+  --info: 214 82% 42%;
+  color-scheme: light;
+}
+
+@layer base {
+  html, body, #root { height: 100%; }
+  body {
+    @apply bg-background font-sans text-foreground antialiased;
+    font-feature-settings: "cv11", "ss01", "ss03";
+    text-rendering: optimizeLegibility;
+    overscroll-behavior-y: none;
+  }
+  ::selection { background: hsl(var(--accent) / 0.28); }
+  :focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; border-radius: 6px; }
+  button, [role="button"] { -webkit-tap-highlight-color: transparent; }
+  * { scrollbar-width: thin; scrollbar-color: hsl(var(--border)) transparent; }
+}
+
+@layer components {
+  /* Rendered markdown (assistant prose). Kept small and calm. */
+  .prose-dp { @apply text-[15px] leading-7 text-foreground/90; }
+  .prose-dp > * + * { @apply mt-3; }
+  .prose-dp h1, .prose-dp h2, .prose-dp h3 { @apply font-semibold tracking-tight text-foreground; }
+  .prose-dp h1 { @apply text-xl; } .prose-dp h2 { @apply text-lg; } .prose-dp h3 { @apply text-base; }
+  .prose-dp ul { @apply list-disc space-y-1 pl-5 marker:text-subtle; }
+  .prose-dp ol { @apply list-decimal space-y-1 pl-5 marker:text-subtle; }
+  .prose-dp a { @apply text-accent underline decoration-accent/40 underline-offset-4 hover:decoration-accent; }
+  .prose-dp strong { @apply font-semibold text-foreground; }
+  .prose-dp code { @apply rounded-md bg-muted px-1.5 py-0.5 font-mono text-[13px]; }
+  .prose-dp pre { @apply overflow-x-auto rounded-xl border border-border bg-surface p-4; }
+  .prose-dp pre code { @apply bg-transparent p-0; }
+  .prose-dp blockquote { @apply border-l-2 border-border pl-4 text-muted-foreground; }
+  .prose-dp table { @apply block w-full overflow-x-auto text-sm; }
+  .prose-dp th, .prose-dp td { @apply border-b border-border px-3 py-2 text-left; }
+
+  .skeleton {
+    @apply rounded-md;
+    background: linear-gradient(90deg, hsl(var(--muted)) 25%, hsl(var(--raised)) 50%, hsl(var(--muted)) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 2.2s linear infinite;
+  }
+}
+
+/* Animations are decoration only: with reduced motion everything is simply present. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+  .skeleton { animation: none; }
+}
