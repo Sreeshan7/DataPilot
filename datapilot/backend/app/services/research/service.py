@@ -28,6 +28,7 @@ from app.services.research.normalize import normalise
 from app.services.research.providers import ProviderError, ResearchProvider, SearchHit, WebSearchProvider
 from app.services.research.scholarly import ArxivProvider, CrossrefProvider, OpenAlexProvider
 from app.services.research import assist
+from app.services.research.progress import Progress
 from app.services.research.queries import QueryPlan, build_queries, understand
 from app.services.research.ranking import rank
 from app.services.research.recommend import recommend
@@ -115,8 +116,9 @@ class ResearchService:
         batches = await asyncio.gather(*(self._search_one(p, queries, errors) for p in providers))
         return [h for batch in batches for h in batch], [p.name for p, b in zip(providers, batches) if b]
 
-    async def discover(self, request: ResearchRequest) -> ResearchResponse:
+    async def discover(self, request: ResearchRequest, progress: Optional[Progress] = None) -> ResearchResponse:
         s = self._settings
+        pg = progress or Progress()
         plan = understand(request.project, request.dataset)
         assisted: list[str] = []
         notes: list[str] = []
@@ -124,7 +126,23 @@ class ResearchService:
         writer = self._research_writer() if wants_assist else None
         can_assist = writer is not None and writer.is_configured and getattr(writer, "headroom", 99) >= ASSIST_MIN_HEADROOM
         extra: list[str] = []
+        steps = [("understand", "Reading your question")]
+        if can_assist:
+            steps.append(("ai-question", "Asking AI for synonyms and related terms"))
+        steps += [("queries", "Building search queries"), ("search", "Searching OpenAlex, arXiv and Crossref"),
+                  ("dedupe", "Removing duplicates and non-academic pages"),
+                  ("gate", "Checking each paper is really about your subject")]
+        if can_assist:
+            steps.append(("ai-relevance", "AI is reading titles and abstracts"))
+        steps += [("methods", "Comparing methods and reported results"), ("recommend", "Matching methods to your task")]
+        if request.options.use_ai and s.research_gemini_enabled:
+            steps.append(("synthesis", "Writing the AI interpretation"))
+        steps.append(("finish", "Preparing your findings"))
+        await pg.plan(steps)
+        await pg.start("understand")
+        await pg.done("understand", ", ".join(plan.core_terms) if plan.problem else "needs more detail")
         if plan.problem and can_assist:
+            await pg.start("ai-question")
             understood, why = await assist.understand_question(writer, s, request.project, request.dataset, plan)
             if understood:
                 plan.core_groups, plan.ai_assisted = understood.core_groups, True
@@ -132,12 +150,16 @@ class ResearchService:
                 plan.problem = understood.problem
                 extra = understood.queries[:2]
                 assisted.append("question")
+                await pg.done("ai-question", f"{len(plan.all_core_words)} terms")
             elif why:
                 notes.append(f"AI question understanding skipped: {why}.")
+                await pg.skip("ai-question", "used the built-in reading")
+        await pg.start("queries")
         queries, why_not = build_queries(request.project, request.dataset, s.research_max_queries, plan=plan)
         if not queries:
             return self._response(ResearchStatus.NEEDS_CLARIFICATION, why_not, [])
         queries = list(dict.fromkeys(queries[: max(1, s.research_max_queries - len(extra))] + extra))
+        await pg.done("queries", f"{len(queries)} queries")
         shown = Interpretation(problem=plan.problem, core_terms=plan.core_terms, context_terms=plan.context_terms,
                                corrections=plan.corrections, ai_assisted=plan.ai_assisted)
         if not s.research_enabled:
@@ -145,6 +167,7 @@ class ResearchService:
                                   interpretation=shown)
 
         errors: list[ProviderError] = []
+        await pg.start("search", f"{len(queries)} queries")
         primary = [p for p in self._providers if not getattr(p, "fallback", False)]
         fallback = [p for p in self._providers if getattr(p, "fallback", False)]
         hits, used = await self._gather(primary, queries, errors)
@@ -154,6 +177,9 @@ class ResearchService:
             hits += more
             used += used_more
             papers, rejected, _ = normalise(hits)
+        await pg.done("search", f"{len(hits)} results from {len(used)} source{'s' if len(used) != 1 else ''}")
+        await pg.start("dedupe")
+        await pg.done("dedupe", f"{len(papers)} distinct papers")
         if not hits and errors:
             return self._response(
                 ResearchStatus.SEARCH_UNAVAILABLE,
@@ -161,17 +187,24 @@ class ResearchService:
                 limitations=["Every literature source failed or was rate limited; try again in a moment."],
                 interpretation=shown)
 
+        await pg.start("gate")
         method_tools.annotate_methods(papers)
         gated = rank(papers, request.project, request.dataset, min_year=request.options.min_year, plan=plan)
         ranked = [p for p in gated if p.relevance_score >= MIN_RELEVANCE]
+        await pg.done("gate", f"{len(ranked)} kept, {max(0, len(papers) - len(ranked))} left out")
         judge_ok = writer is not None and writer.is_configured and getattr(writer, "headroom", 99) >= ASSIST_MIN_HEADROOM - 1
+        if can_assist and not (ranked and judge_ok):
+            await pg.skip("ai-relevance", "nothing to judge or budget low")
         if ranked and judge_ok:
+            await pg.start("ai-relevance", f"{min(len(ranked), assist.JUDGE_BATCH)} papers")
             judged, why = await assist.judge_relevance(writer, s, request.project, plan, ranked)
             if judged:
                 ranked = self._apply_judgements(ranked, judged)
                 assisted.append("relevance")
+                await pg.done("ai-relevance", f"{len(judged)} papers judged")
             elif why:
                 notes.append(f"AI relevance check skipped: {why}.")
+                await pg.skip("ai-relevance", "used the built-in ranking")
         off_topic = max(0, len(papers) - len(ranked))
         selected = ranked[: request.options.max_papers]
         if not selected:
@@ -184,14 +217,24 @@ class ResearchService:
                 gemini=GeminiResearchUsage(requested=request.options.use_ai, calls_made=len(assisted),
                                            assisted=assisted))
 
+        await pg.start("methods")
         methods = method_tools.aggregate_methods(selected)
         metrics = method_tools.extract_metrics(selected)
+        await pg.done("methods", f"{len(methods)} methods, {len(metrics)} reported figures")
+        await pg.start("recommend")
         recommendations = recommend(methods, request.project, request.dataset)
+        await pg.done("recommend", f"{len(recommendations)} ranked")
+        if request.options.use_ai and s.research_gemini_enabled:
+            await pg.start("synthesis")
         interpretation, gemini = await synthesise(
             self._research_writer() if request.options.use_ai and s.research_gemini_enabled else None,
             s, request.project, request.dataset, selected, methods, metrics, requested=request.options.use_ai)
         gemini.calls_made += len(assisted)
         gemini.assisted = assisted
+        if request.options.use_ai and s.research_gemini_enabled:
+            await (pg.done("synthesis", "checked against the evidence") if interpretation is not None
+                   else pg.skip("synthesis", "unavailable; showing the verified literature"))
+        await pg.start("finish")
 
         provenance = [
             ProvenanceNote(source="+".join(used) or "search", evidence=EvidenceKind.WEB_VERIFIED,

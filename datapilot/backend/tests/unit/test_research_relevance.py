@@ -202,3 +202,56 @@ class TestPool:
     def test_duplicate_and_empty_keys_are_ignored(self):
         assert self.pool(keys=("a", "a", "")).stats()["keys"] == 1
         assert not GeminiPool([], 5, 5).configured
+
+
+class TestStreaming:
+    def parse(self, text):
+        events = []
+        for block in text.strip().split("\n\n"):
+            lines = [l for l in block.splitlines() if not l.startswith(":")]
+            if lines:
+                events.append((lines[0].removeprefix("event: "), json.loads(lines[1].removeprefix("data: "))))
+        return events
+
+    def post(self, monkeypatch, provider=None, writer=None, body=None):
+        from fastapi.testclient import TestClient
+        from app.api.v1 import research as research_api
+        from app.main import app
+
+        monkeypatch.setattr(research_api, "_service", ResearchService(settings(), provider or FakeProvider(TRAFFIC_HITS), writer))
+        payload = body or traffic_request().model_dump(mode="json")
+        return TestClient(app).post("/api/v1/research/stream", json=payload)
+
+    def test_the_stream_reports_real_stages_then_the_same_result(self, monkeypatch):
+        response = self.post(monkeypatch)
+        assert response.headers["content-type"].startswith("text/event-stream")
+        events = self.parse(response.text)
+        kinds = [k for k, _ in events]
+        assert kinds[0] == "plan" and kinds[-1] == "result" and "error" not in kinds
+        planned = [s["id"] for s in events[0][1]["steps"]]
+        assert planned[0] == "understand" and "search" in planned and planned[-1] == "finish"
+        done = {e["id"] for k, e in events if k == "step" and e["state"] == "done"}
+        assert {"understand", "queries", "search", "gate", "methods", "recommend"} <= done
+        search = next(e for k, e in events if k == "step" and e["id"] == "search" and e["state"] == "done")
+        assert "results" in search["detail"]
+        result = events[-1][1]
+        assert result["status"] == "success" and all("traffic" in p["title"].lower() for p in result["papers"])
+
+    def test_steps_arrive_in_order_and_ai_stages_appear_only_when_available(self, monkeypatch):
+        events = self.parse(self.post(monkeypatch).text)
+        assert "ai-question" not in [s["id"] for s in events[0][1]["steps"]]  # no key: not promised
+        started = [e["id"] for k, e in events if k == "step" and e["state"] == "running"]
+        assert started.index("search") < started.index("gate") < started.index("methods")
+
+    def test_an_unexpected_failure_becomes_an_error_event_without_details(self, monkeypatch):
+        class Boom(FakeProvider):
+            async def search(self, query, limit):
+                raise MemoryError("secret internals")
+
+        events = self.parse(self.post(monkeypatch, Boom()).text)
+        assert events[-1][0] in ("result", "error") and "secret" not in json.dumps(events)
+
+    def test_a_question_with_no_subject_streams_a_clarification(self, monkeypatch):
+        body = {"project": {"description": "help me with forecasting"}, "options": {}}
+        events = self.parse(self.post(monkeypatch, body=body).text)
+        assert events[-1][0] == "result" and events[-1][1]["status"] == "needs_clarification"

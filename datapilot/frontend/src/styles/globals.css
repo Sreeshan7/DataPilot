@@ -77,6 +77,14 @@
   .prose-dp table { @apply block w-full overflow-x-auto text-sm; }
   .prose-dp th, .prose-dp td { @apply border-b border-border px-3 py-2 text-left; }
 
+  /* The label of the stage that is running right now: a soft light sweeps across the text. */
+  .text-working {
+    background: linear-gradient(90deg, hsl(var(--foreground)) 35%, hsl(var(--accent)) 50%, hsl(var(--foreground)) 65%);
+    background-size: 250% 100%;
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    animation: shimmer 2.4s linear infinite;
+  }
+
   .skeleton {
     @apply rounded-md;
     background: linear-gradient(90deg, hsl(var(--muted)) 25%, hsl(var(--raised)) 50%, hsl(var(--muted)) 75%);
@@ -94,4 +102,5 @@
     scroll-behavior: auto !important;
   }
   .skeleton { animation: none; }
+  .text-working { animation: none; color: hsl(var(--foreground)); background: none; }
 }

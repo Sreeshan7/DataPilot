@@ -41,6 +41,8 @@ if (mode === "research") {
   await page.getByRole("button", { name: "Research this problem" }).first().click();
   await page.waitForTimeout(1500);
   await page.screenshot({ path: `${OUT}/research-${tag}-pending.png` });
+  await page.waitForTimeout(3500);
+  await page.screenshot({ path: `${OUT}/research-${tag}-pending2.png` });
   await page.locator('section[aria-label="Research summary"], p:has-text("Literature search is temporarily unavailable"), p:has-text("found no academic sources")').first().waitFor({ timeout: 120000 });
   await page.waitForTimeout(600);
   await fullShot(page, `research-${tag}-result`);

@@ -73,7 +73,7 @@ export function AssistantMessage({ turn, h }: { turn: AssistantTurn; h: MessageH
     return (
       <Shell label="DataPilot is working">
         <ActivityPending workflow={workflow} understood={turn.understood} progress={turn.progress} fileName={file?.name} fileSize={file?.size} onCancel={() => h.onCancel(turn.id)} />
-        {turn.understood?.journey !== "ambiguous" && !turn.progress?.fraction && <ResultSkeleton workflow={workflow} />}
+        {turn.understood?.journey !== "ambiguous" && !turn.progress?.fraction && !turn.progress?.steps && <ResultSkeleton workflow={workflow} />}
       </Shell>
     );
   }

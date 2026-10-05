@@ -28,6 +28,9 @@ export interface Understood {
   confidence: number;
 }
 
+/** A stage the server reported while working. `pending` stages were announced but have not started. */
+export interface LiveStep { id: string; label: string; state: "pending" | "running" | "done" | "skipped"; detail?: string }
+
 export interface AssistantTurn {
   id: string;
   role: "assistant";
@@ -36,7 +39,7 @@ export interface AssistantTurn {
   status: "pending" | "done" | "error";
   /** What the free, deterministic router said before the long call started (a real, completed step). */
   understood?: Understood;
-  progress?: { phase: "uploading" | "processing"; fraction?: number };
+  progress?: { phase: "uploading" | "processing"; fraction?: number; steps?: LiveStep[] };
   result?: Result;
   error?: { message: string; retryable: boolean };
   retry?: RetryInfo;

@@ -323,3 +323,10 @@ Await the owner's sign-off. Do **not** start Phase 6. Suggested first steps when
 `prompt_to_user` and `next_actions` a UI can render directly. Before any commit: run the unit suite and
 both benchmark scripts (metrics above must not move unexpectedly); for registry/source changes run
 `python -m scripts.run_dataset_analysis_e2e`.
+
+## Live research progress (2026-10-05)
+- `POST /api/v1/research/stream` (SSE): `plan`, `step` (running|done|skipped + counts), then `result` (same body as
+  `/discover`) or `error`; 10s keep-alives; client disconnect cancels the work. `research/progress.py` is a no-op
+  unless a listener is attached, so `/discover` is unchanged. The UI shows each real stage (pacer keeps each on screen
+  >= ~0.4s, never drops or invents one) and falls back to `/discover` against an older server.
+- Not yet streamed: `/assist` (discovery and file analysis still show the outline until the single answer arrives).

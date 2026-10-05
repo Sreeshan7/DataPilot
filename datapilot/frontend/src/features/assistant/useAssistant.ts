@@ -1,10 +1,11 @@
 import { useCallback, useRef } from "react";
 import { assist, resolveIntent } from "@/api/assist";
 import { ApiError } from "@/api/client";
-import { discoverResearch } from "@/api/research";
+import { streamResearch, type ProgressEvent } from "@/api/research";
 import type { ConversationStore } from "@/features/conversations/store";
-import type { Attachment, Conversation, RetryInfo, Understood } from "@/features/conversations/types";
+import type { Attachment, Conversation, LiveStep, RetryInfo, Understood } from "@/features/conversations/types";
 import { journeyLabel } from "@/lib/activity";
+import { createPacer } from "@/lib/pacer";
 import { uid } from "@/lib/utils";
 import type { IntentResolution, NextAction, ResearchRequest } from "@/types";
 
@@ -109,10 +110,21 @@ export function useAssistant(store: ConversationStore) {
     const controller = new AbortController();
     aborts.current.set(turnId, controller);
     const retry: RetryInfo = { type: "research", request };
+    const reduced = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    const pacer = createPacer(reduced ? 0 : 420);
+    let steps: LiveStep[] = [];
+    const show = () => store.patch(convId, turnId, { progress: { phase: "processing", steps } });
+    const onProgress = (e: ProgressEvent) => pacer.push(() => {
+      if (e.type === "plan") steps = e.steps.map((s) => ({ ...s, state: "pending" as const }));
+      else steps = steps.map((s) => (s.id === e.id ? { ...s, state: e.state, detail: e.detail ?? undefined } : s));
+      show();
+    });
     try {
-      const data = await discoverResearch(request, { signal: controller.signal });
-      store.patch(convId, turnId, { status: "done", result: { kind: "research", data }, retry });
+      const data = await streamResearch(request, { signal: controller.signal, onProgress });
+      await pacer.flush(); // every reported stage is shown before the answer replaces it
+      store.patch(convId, turnId, { status: "done", progress: undefined, result: { kind: "research", data }, retry });
     } catch (error) {
+      pacer.cancel();
       finishWithError(convId, turnId, error, retry);
     } finally {
       aborts.current.delete(turnId);

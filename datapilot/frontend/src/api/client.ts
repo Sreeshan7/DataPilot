@@ -55,7 +55,7 @@ function backendMessage(body: unknown): { code?: string; message?: string } {
   return { code: error?.code, message: typeof error?.message === "string" ? error.message : undefined };
 }
 
-function toApiError(status: number, body: unknown): ApiError {
+export function toApiError(status: number, body: unknown): ApiError {
   const { code, message } = backendMessage(body);
   const described = describeHttpError(status, code, message);
   return new ApiError("http", described.message, status, code, described.retryable);
