@@ -19,7 +19,12 @@ export function Sheet({ open, onClose, label, children }: { open: boolean; onClo
   }, [open, onClose]);
 
   return (
-    <div className={cn("fixed inset-0 z-50 md:hidden", open ? "pointer-events-auto" : "pointer-events-none")} aria-hidden={!open}>
+    <div
+      className={cn("fixed inset-0 z-50 md:hidden", open ? "pointer-events-auto" : "pointer-events-none")}
+      aria-hidden={!open}
+      // Closed means unreachable: hidden from the tab order too, but only after the slide-out has finished.
+      style={{ visibility: open ? "visible" : "hidden", transition: open ? "none" : "visibility 0s linear 250ms" }}
+    >
       <div onClick={onClose} className={cn("absolute inset-0 bg-black/55 transition-opacity duration-200", open ? "opacity-100" : "opacity-0")} />
       <div
         ref={panel}
