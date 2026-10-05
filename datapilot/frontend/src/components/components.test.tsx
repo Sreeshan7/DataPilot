@@ -204,3 +204,45 @@ describe("MatchedDataset", () => {
     expect(container).toBeEmptyDOMElement();
   });
 });
+
+describe("Project blueprint card", () => {
+  const idea = {
+    id: "i1", title: "Estimate `traffic_volume`", problem_statement: "Build a regression model.", task: "regression", target: "traffic_volume",
+    required_features: ["hour"], optional_features: [], why_it_fits: "ok", challenges: [], evaluation_metrics: [], baseline_models: [], stronger_models: [],
+    difficulty: "beginner", extension_potential: "", limitations: [], evidence_level: "datapilot_parsed", source: "deterministic", state: "POSSIBLE",
+    recommended: true, feasibility: { level: "high", reasons: ["3,000 rows is workable"] },
+    research_request: { project: { problem: "traffic volume prediction" }, options: {} },
+    blueprint: {
+      headline: "A city team can use this to plan road works around busy hours.", real_world_value: "Supports scheduling. Benefits commuters.", effort: "about a weekend", source: "ai_inferred",
+      key_columns: [
+        { column: "traffic_volume", role: "target", why: "What the model predicts.", evidence: "schema" },
+        { column: "hour", role: "key_driver", why: "Rush hours dominate.", evidence: "measured" },
+        { column: "id_code", role: "exclude", why: "A row identifier.", evidence: "measured" },
+      ],
+      build_steps: [1, 2, 3, 4, 5].map((n) => ({ title: `Step ${n}`, detail: `Do thing ${n}.` })),
+      evaluation_plan: "Hold out a test set.", pitfalls: ["Rain is rare in the sample."], stretch_goals: ["Add a dashboard."],
+    },
+  } as never;
+
+  it("shows the realistic framing, what matters in the data, the build plan and the research button below", async () => {
+    const onResearch = vi.fn();
+    render(<IdeaCard idea={idea} onResearch={onResearch} />);
+    expect(screen.getByText("Best first project")).toBeInTheDocument();
+    expect(screen.getByText("AI-written plan")).toBeInTheDocument();
+    expect(screen.getByText("A city team can use this to plan road works around busy hours.")).toBeInTheDocument();
+    expect(screen.getByText("Key driver")).toBeInTheDocument();
+    expect(screen.getByText("Leave out")).toBeInTheDocument();
+    expect(screen.getAllByText("Measured").length).toBe(2);
+    expect(screen.getByText("Step 3")).toBeInTheDocument(); // the recommended card opens its plan
+    const research = screen.getByRole("button", { name: /Research this project/ });
+    expect(research.compareDocumentPosition(screen.getByText("Step 3")) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy(); // research sits below the plan
+    await userEvent.setup().click(research);
+    expect(onResearch).toHaveBeenCalled();
+  });
+
+  it("collapses the plan on cards that are not the recommended one", () => {
+    render(<IdeaCard idea={{ ...(idea as object), recommended: false } as never} />);
+    expect(screen.queryByText("Step 3")).toBeNull();
+    expect(screen.getByRole("button", { name: /How to build it/ })).toHaveAttribute("aria-expanded", "false");
+  });
+});

@@ -44,6 +44,14 @@ class ProjectIntelligenceService:
         self._settings = settings or get_settings()
         self._writer = writer
 
+    def _blueprint_writer(self):
+        """The writer used for build plans: an injected one (tests) or the real Gemini client."""
+        if self._writer is not None:
+            return self._writer
+        from app.services.llm_service import LLMService
+
+        return LLMService(self._settings)
+
     def _idea_writer(self) -> Optional[IdeaWriter]:
         """The Gemini client, built only if it is ever needed (so a plain analysis never touches it)."""
         if self._writer is None:
@@ -92,6 +100,13 @@ class ProjectIntelligenceService:
         from app.services.research.offer import request_for_idea
 
         ideas = [i.model_copy(update={"research_request": request_for_idea(i, analysis, goal)}) for i in ideas]
+        from app.services.project_intelligence.blueprint import attach_blueprints, rank_ideas
+
+        progress.start("blueprint", "Writing detailed build plans")
+        ideas, ai_plans, plan_note = await attach_blueprints(rank_ideas(ideas), shape, intel, goal, self._blueprint_writer(), self._settings)
+        progress.done("blueprint", f"{len(ideas)} plans" + (f", {ai_plans} AI-written" if ai_plans else ""))
+        if plan_note:
+            warnings.append(plan_note)
         warnings.extend(gemini_warnings)
 
         compatibility = assess_compatibility(goal, analysis, understanding, shape) if goal else None

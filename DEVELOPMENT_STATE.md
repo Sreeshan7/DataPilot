@@ -401,3 +401,17 @@ both benchmark scripts (metrics above must not move unexpectedly); for registry/
 - **Confirmation:** `MatchedDataset` card shows which dataset was matched (name, source, link, only-match vs best-of-several,
   the registry's own explanation) and lets the user switch to any alternative that has a link. Absent for uploads/links.
 - Live: the exact message resolved to Hugging Face LIAR (14 columns, 12,836 rows, target label). Tests: backend 2314, frontend 45.
+
+## Project blueprints (2026-10-05)
+- Every project idea now carries a `blueprint` (headline, why it matters, key columns with roles, 5-7 ordered build steps,
+  evaluation plan, pitfalls, stretch goals, effort) and the ideas are ranked, the best first project flagged `recommended`.
+- **Deterministic first** (`project_intelligence/blueprint.py`): built from the target, the measured feature roles (drivers,
+  watch-outs, leaks, identifiers; timestamps become "derive features", not "exclude") and task templates (supervised,
+  forecast, descriptive-drivers, unsupervised).
+- **AI upgrade:** ONE batched Gemini call for the top 3 ideas (setting `analysis_blueprint_enabled`/`_ideas`; skipped when
+  headroom < 2). Column NAMES and TYPES only, identifier/sensitive columns withheld. Validation is per field: a sentence that
+  has a link, markdown, a promised accuracy, a causal claim or an unknown backticked column is replaced by DataPilot's own
+  text; fewer than 4 valid steps keeps the deterministic plan. MEASURED roles (leak, identifier, use-with-caution) cannot be
+  overridden by the model and flagged columns it omits are added back. Labelled `ai_inferred` / "AI-written plan".
+- UI: full-width idea cards; "Research this project" sits below the plan.
+- Tests: backend 2328, frontend 47. Live on a generated traffic file and on the churn sample: plans passed validation.

@@ -208,9 +208,13 @@ class TestIdeasAreGrounded:
         pi = intelligence_of("diabetes")
         shape = shape_of(outcome.analysis)
         again = generate_ideas(outcome.analysis, pi.understanding, pi.feature_intelligence, shape)
-        # the service attaches a ready-made research request; every other field must match exactly
-        strip = lambda ideas: [{k: v for k, v in i.model_dump().items() if k != "research_request"} for i in ideas]
+        # the service attaches a research request, a blueprint and the "recommended" flag, and puts the best first project
+        # first; every other field of every idea must match the generator's exactly
+        added = {"research_request", "blueprint", "recommended"}
+        strip = lambda ideas: sorted(({k: v for k, v in i.model_dump().items() if k not in added} for i in ideas), key=lambda d: d["id"])
         assert strip(again) == strip(pi.project_ideas)
+        assert all(i.blueprint and i.blueprint.build_steps and i.blueprint.source == "deterministic" for i in pi.project_ideas)
+        assert sum(i.recommended for i in pi.project_ideas) <= 1
         assert all(i.research_request and i.research_request["project"]["problem"] for i in pi.project_ideas)
         assert all(i.feasibility is None or i.feasibility.level in ("high", "medium", "low") for i in pi.project_ideas)
 

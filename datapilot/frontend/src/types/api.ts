@@ -558,6 +558,13 @@ export interface components {
              */
             use_ai: boolean;
         };
+        /** BuildStep */
+        BuildStep: {
+            /** Title */
+            title: string;
+            /** Detail */
+            detail: string;
+        };
         /**
          * CandidateState
          * @enum {string}
@@ -2041,6 +2048,27 @@ export interface components {
              */
             options?: string[];
         };
+        /**
+         * KeyColumn
+         * @description A column that plays a part in a project, and what part.
+         */
+        KeyColumn: {
+            /** Column */
+            column: string;
+            /**
+             * Role
+             * @description target | key_driver | supporting | watch_out | exclude
+             */
+            role: string;
+            /** Why */
+            why: string;
+            /**
+             * Evidence
+             * @description measured (on the rows) | schema | ai_inferred
+             * @default schema
+             */
+            evidence: string;
+        };
         /** KeywordMatchEvidence */
         KeywordMatchEvidence: {
             /** Canonical Term */
@@ -2386,6 +2414,40 @@ export interface components {
             meta: components["schemas"]["ResponseMeta"];
         };
         /**
+         * ProjectBlueprint
+         * @description How to build the project, grounded in this dataset. ``source`` says whether DataPilot or an AI wrote the prose.
+         */
+        ProjectBlueprint: {
+            /** Headline */
+            headline: string;
+            /** Real World Value */
+            real_world_value: string;
+            /** Key Columns */
+            key_columns?: components["schemas"]["KeyColumn"][];
+            /** Build Steps */
+            build_steps?: components["schemas"]["BuildStep"][];
+            /**
+             * Evaluation Plan
+             * @default
+             */
+            evaluation_plan: string;
+            /** Pitfalls */
+            pitfalls?: string[];
+            /** Stretch Goals */
+            stretch_goals?: string[];
+            /**
+             * Effort
+             * @default
+             */
+            effort: string;
+            /**
+             * Source
+             * @description deterministic | ai_inferred
+             * @default deterministic
+             */
+            source: string;
+        };
+        /**
          * ProjectCompatibility
          * @description Whether this dataset can serve the project the user described.
          */
@@ -2444,6 +2506,13 @@ export interface components {
             /** @default possible */
             state: components["schemas"]["CandidateState"];
             feasibility?: components["schemas"]["Feasibility"] | null;
+            blueprint?: components["schemas"]["ProjectBlueprint"] | null;
+            /**
+             * Recommended
+             * @description The best first project for this dataset.
+             * @default false
+             */
+            recommended: boolean;
             /**
              * Research Request
              * @description A ready-made POST /research/stream body for this specific project (never run automatically).

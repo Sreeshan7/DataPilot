@@ -61,8 +61,10 @@ def _plan_for(intent: UserIntent, has_file: bool, has_goal: bool) -> list[tuple[
                  ("tasks", "Working out which tasks fit")]
         if has_goal:
             steps.append(("ai-target", "Matching your goal to a column"))
-        return steps + [("signal", "Measuring which columns carry signal"), ("ideas", "Drafting project ideas from your columns")]
-    return [("lookup", "Looking the dataset up in public registries"), ("ideas", "Drafting project ideas from your columns")]
+        return steps + [("signal", "Measuring which columns carry signal"), ("ideas", "Drafting project ideas from your columns"),
+                        ("blueprint", "Writing detailed build plans")]
+    return [("lookup", "Looking the dataset up in public registries"), ("ideas", "Drafting project ideas from your columns"),
+            ("blueprint", "Writing detailed build plans")]
 
 
 async def _name_from_message(message: Optional[str]) -> Optional[str]:

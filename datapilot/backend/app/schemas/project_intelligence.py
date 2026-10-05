@@ -212,6 +212,34 @@ class IdeaSource(str, Enum):
     GEMINI_ENHANCED = "gemini_enhanced"
 
 
+class KeyColumn(BaseModel):
+    """A column that plays a part in a project, and what part."""
+
+    column: str
+    role: str = Field(..., description="target | key_driver | supporting | watch_out | exclude")
+    why: str
+    evidence: str = Field("schema", description="measured (on the rows) | schema | ai_inferred")
+
+
+class BuildStep(BaseModel):
+    title: str
+    detail: str
+
+
+class ProjectBlueprint(BaseModel):
+    """How to build the project, grounded in this dataset. ``source`` says whether DataPilot or an AI wrote the prose."""
+
+    headline: str
+    real_world_value: str
+    key_columns: list[KeyColumn] = Field(default_factory=list)
+    build_steps: list[BuildStep] = Field(default_factory=list)
+    evaluation_plan: str = ""
+    pitfalls: list[str] = Field(default_factory=list)
+    stretch_goals: list[str] = Field(default_factory=list)
+    effort: str = ""
+    source: str = Field("deterministic", description="deterministic | ai_inferred")
+
+
 class Feasibility(BaseModel):
     """How realistic the idea looks on THIS data. Computed from the profile, never promised as an outcome."""
 
@@ -239,6 +267,8 @@ class ProjectIdea(BaseModel):
     source: IdeaSource = IdeaSource.DETERMINISTIC
     state: CandidateState = CandidateState.POSSIBLE
     feasibility: Optional[Feasibility] = None
+    blueprint: Optional[ProjectBlueprint] = None
+    recommended: bool = Field(False, description="The best first project for this dataset.")
     research_request: Optional[dict[str, Any]] = Field(
         None, description="A ready-made POST /research/stream body for this specific project (never run automatically).")
 

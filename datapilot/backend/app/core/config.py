@@ -149,6 +149,8 @@ class Settings(BaseSettings):
     # deterministic result is always produced first and is returned unchanged if the
     # call is disabled, unavailable or rejected.
     analysis_gemini_enabled: bool = True
+    analysis_blueprint_enabled: bool = True   # detailed AI-written build plans for the top ideas (one batched call)
+    analysis_blueprint_ideas: int = 3
     analysis_ai_name_enabled: bool = True     # read the dataset name out of a message the rules cannot parse (one small call)
     analysis_ai_target_enabled: bool = True   # goal-aware target pick (one small call, names and types only)
     analysis_gemini_max_columns: int = 60
