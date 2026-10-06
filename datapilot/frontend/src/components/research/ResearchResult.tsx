@@ -1,4 +1,4 @@
-import { AlertTriangle, ArrowRight, ExternalLink, Info, Quote, Sparkles } from "lucide-react";
+import { AlertTriangle, ArrowRight, ExternalLink, Info, ListChecks, Quote, Sparkles } from "lucide-react";
 import type { ReactNode } from "react";
 import { Markdown } from "@/components/chat/Markdown";
 import { Rich } from "@/components/chat/Rich";
@@ -125,6 +125,39 @@ function Bullets({ title, items, tone }: { title: string; items: string[]; tone?
   );
 }
 
+/** How to actually run one algorithm: when to pick it, what to use, the steps, the settings and the pitfalls. */
+function ExecutionPlan({ e }: { e: NonNullable<AlgorithmRecommendation["analysis"]>["execution"] }) {
+  if (!e || (e.steps.length === 0 && !e.choose_when)) return null;
+  return (
+    <Disclosure defaultOpen label={<span className="flex items-center gap-2 text-[13.5px] font-semibold text-foreground"><ListChecks className="size-3.5 text-accent" aria-hidden />How to run it</span>}
+      meta={e.source === "ai_inferred" ? "written for your data" : "general guidance"} className="mt-2.5 rounded-lg border border-accent/20 bg-accent-soft/10 px-3.5 py-2.5">
+      <div className="space-y-4 pb-1.5">
+        {e.libraries.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-[11px] font-medium uppercase tracking-wider text-subtle">Use</span>
+            {e.libraries.map((l) => <span key={l} className="rounded-md border border-border bg-muted/50 px-2 py-0.5 font-mono text-xs text-muted-foreground">{l}</span>)}
+          </div>
+        )}
+        {e.steps.length > 0 && (
+          <ol className="space-y-2.5">
+            {e.steps.map((step, i) => (
+              <li key={i} className="flex gap-3 text-[13.5px] leading-6">
+                <span className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full border border-accent/30 bg-accent-soft text-[11px] font-semibold text-accent" aria-hidden>{i + 1}</span>
+                <span className="text-muted-foreground"><Rich>{step}</Rich></span>
+              </li>
+            ))}
+          </ol>
+        )}
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Bullets title="Settings to tune" items={e.key_settings} />
+          <Bullets title="Pitfalls" items={e.pitfalls} tone="bad" />
+        </div>
+        {e.validate_with && <Labelled label="How to validate it"><Rich>{e.validate_with}</Rich></Labelled>}
+      </div>
+    </Disclosure>
+  );
+}
+
 function Recommendation({ r, titles, first }: { r: AlgorithmRecommendation; titles: Record<string, string>; first: boolean }) {
   const a = r.analysis;
   return (
@@ -137,8 +170,10 @@ function Recommendation({ r, titles, first }: { r: AlgorithmRecommendation; titl
         <span className="text-xs text-subtle">{plural(r.evidence_paper_count, "paper")}</span>
         {a?.ai_enriched && <Badge tone="accent" title="Refined by an AI model using the papers and your dataset"><Sparkles className="size-3" aria-hidden />AI-refined</Badge>}
       </div>
-      {a?.fit_for_your_data && <p className="mt-2.5 text-[14px] leading-6 text-foreground/90"><span className="font-medium">For your data: </span><Rich>{a.fit_for_your_data}</Rich></p>}
+      {a?.execution?.choose_when && <p className="mt-2.5 text-[14px] leading-6 text-foreground/90"><span className="font-medium">Pick it when: </span><Rich>{a.execution.choose_when}</Rich></p>}
+      {a?.fit_for_your_data && <p className="mt-2 text-[14px] leading-6 text-foreground/90"><span className="font-medium">For your data: </span><Rich>{a.fit_for_your_data}</Rich></p>}
       {r.cautions.length > 0 && <ul className="mt-1.5 list-disc space-y-0.5 pl-5 text-[13px] leading-5 text-warning marker:text-warning/60">{r.cautions.map((c, i) => <li key={i}>{c}</li>)}</ul>}
+      {a?.execution && <ExecutionPlan e={a.execution} />}
       {a && (
         <Disclosure defaultOpen={first} label="Full analysis" meta="strengths, weaknesses, preparation, tuning" className="mt-2.5">
           <div className="space-y-4 pb-1">
@@ -244,6 +279,101 @@ function Benchmarks({ items }: { items: ReportedMetric[] }) {
         </table>
       </div>
     </div>
+  );
+}
+
+/** Every model the research touched, side by side, with the one DataPilot suggests for this project marked. */
+function ModelSummary({ data }: { data: ResearchResponse }) {
+  const norm = (s: string) => s.trim().toLowerCase();
+  const recs = data.algorithm_recommendations;
+  const recNames = new Set(recs.map((r) => norm(r.method)));
+  const extra = data.methods.filter((m) => !recNames.has(norm(m.method)));
+  if (recs.length === 0 && extra.length === 0) return null;
+  const ap = data.approach;
+  const roleOf = (method: string): { label: string; tone: Tone } | null => {
+    if (!ap) return null;
+    if (norm(ap.primary) === norm(method)) return { label: "Main model", tone: "success" };
+    if (norm(ap.baseline) === norm(method)) return { label: "Baseline", tone: "neutral" };
+    if (ap.stretch && norm(ap.stretch) === norm(method)) return { label: "Contrast with", tone: "info" };
+    return null;
+  };
+  const bestName = ap?.primary ?? recs[0]?.method;
+  const best = recs.find((r) => norm(r.method) === norm(bestName ?? "")) ?? recs[0];
+  const same = (a: string, b: string) => { const x = norm(a), y = norm(b); return !!x && !!y && (x === y || x.includes(y) || y.includes(x)); };
+  const figures = (method: string) => data.benchmarks.filter((b) => b.method && same(b.method, method));
+  const rowNames = [...recs.map((r) => r.method), ...extra.map((m) => m.method)];
+  const benchOnly = [...new Set(data.benchmarks.filter((b) => b.method && !rowNames.some((n) => same(n, b.method as string))).map((b) => b.method as string))];
+  const unattributed = data.benchmarks.filter((b) => !b.method).length;
+  const Figures = ({ items }: { items: ReportedMetric[] }) => items.length === 0 ? <span className="text-subtle">—</span> : (
+    <ul className="space-y-1.5">
+      {items.map((m, i) => (
+        <li key={`${m.paper_id}-${m.metric}-${i}`} className="leading-5">
+          <span className="text-muted-foreground">{m.metric}</span>{" "}
+          <a href={safeUrl(m.url) ?? undefined} target="_blank" rel="noopener noreferrer nofollow" title={`${m.paper_title}${m.context ? " · " + m.context : ""}`} className="font-semibold tabular-nums text-foreground hover:text-accent hover:underline">{m.value}</a>
+        </li>
+      ))}
+    </ul>
+  );
+  const th = "px-3.5 py-2.5 font-medium whitespace-nowrap";
+  return (
+    <Section title="Models compared and the best one for your project" hint="Every model found in the research, side by side. The highlighted row is the one DataPilot recommends for your project.">
+      {best && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-xl border border-success/30 bg-success/10 px-4 py-3 text-[14px]">
+          <Badge tone="success">Best for your project</Badge>
+          <strong className="font-semibold">{best.method}</strong>
+          <span className="text-muted-foreground">literature: {best.literature_support} · fit for your task: {best.dataset_compatibility} · {plural(best.evidence_paper_count, "paper")}</span>
+        </div>
+      )}
+      <div className="overflow-x-auto rounded-xl border border-border bg-surface">
+        <table className="w-full min-w-[52rem] text-left text-[13px]">
+          <thead className="bg-raised text-xs uppercase tracking-wider text-subtle">
+            <tr><th className={th}>#</th><th className={th}>Model</th><th className={th}>Role</th><th className={th}>Literature</th><th className={th}>Fit for your task</th><th className={th}>Papers</th><th className={th}>Main strength</th><th className={th}>Main weakness</th><th className={th}>Reported results (accuracy &amp; other metrics)</th></tr>
+          </thead>
+          <tbody className="divide-y divide-border">
+            {recs.map((r) => {
+              const isBest = best != null && norm(r.method) === norm(best.method);
+              const role = roleOf(r.method);
+              return (
+                <tr key={r.method} className={`align-top ${isBest ? "bg-success/10" : ""}`}>
+                  <td className="px-3.5 py-3 tabular-nums text-muted-foreground">{r.rank}</td>
+                  <td className="px-3.5 py-3 font-semibold">{r.method}{isBest && <span className="ml-2 align-middle"><Badge tone="success">Best</Badge></span>}</td>
+                  <td className="px-3.5 py-3">{role ? <Badge tone={role.tone}>{role.label}</Badge> : <span className="text-subtle">—</span>}</td>
+                  <td className="px-3.5 py-3"><Badge tone={LEVEL[r.literature_support]}>{r.literature_support}</Badge></td>
+                  <td className="px-3.5 py-3"><Badge tone={LEVEL[r.dataset_compatibility]}>{r.dataset_compatibility}</Badge></td>
+                  <td className="px-3.5 py-3 tabular-nums text-muted-foreground">{r.evidence_paper_count}</td>
+                  <td className="min-w-[11rem] px-3.5 py-3 text-muted-foreground">{r.analysis?.strengths?.[0] ? `✓ ${r.analysis.strengths[0]}` : "—"}</td>
+                  <td className="min-w-[11rem] px-3.5 py-3 text-muted-foreground">{(r.analysis?.weaknesses?.[0] ?? r.cautions[0]) ? `⚠ ${r.analysis?.weaknesses?.[0] ?? r.cautions[0]}` : "—"}</td>
+                  <td className="min-w-[12rem] px-3.5 py-3"><Figures items={figures(r.method)} /></td>
+                </tr>
+              );
+            })}
+            {extra.map((m, i) => (
+              <tr key={`x-${m.method}`} className="align-top">
+                <td className="px-3.5 py-3 tabular-nums text-muted-foreground">{recs.length + i + 1}</td>
+                <td className="px-3.5 py-3 font-semibold">{m.method}</td>
+                <td className="px-3.5 py-3"><span className="text-subtle">—</span></td>
+                <td className="px-3.5 py-3"><Badge tone="neutral">mentioned</Badge></td>
+                <td className="px-3.5 py-3"><span className="text-subtle">—</span></td>
+                <td className="px-3.5 py-3 tabular-nums text-muted-foreground">{m.verified_paper_count}</td>
+                <td className="px-3.5 py-3 text-subtle">—</td><td className="px-3.5 py-3 text-subtle">—</td><td className="min-w-[12rem] px-3.5 py-3"><Figures items={figures(m.method)} /></td>
+              </tr>
+            ))}
+            {benchOnly.map((name, i) => (
+              <tr key={`b-${name}`} className="align-top">
+                <td className="px-3.5 py-3 tabular-nums text-muted-foreground">{recs.length + extra.length + i + 1}</td>
+                <td className="px-3.5 py-3 font-semibold">{name}</td>
+                <td className="px-3.5 py-3"><span className="text-subtle">—</span></td>
+                <td className="px-3.5 py-3"><Badge tone="neutral">mentioned</Badge></td>
+                <td className="px-3.5 py-3"><span className="text-subtle">—</span></td>
+                <td className="px-3.5 py-3 text-subtle">—</td><td className="px-3.5 py-3 text-subtle">—</td><td className="px-3.5 py-3 text-subtle">—</td>
+                <td className="min-w-[12rem] px-3.5 py-3"><Figures items={figures(name)} /></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="text-xs text-subtle">Reported results come from each paper's own experiment and dataset, not from yours; hover a number to see its paper, click to open it.{unattributed > 0 ? ` ${unattributed} more figure${unattributed === 1 ? "" : "s"} could not be tied to one method and ${unattributed === 1 ? "is" : "are"} listed under Reported results.` : ""} Paper counts show how often a method appears, which is evidence of use, not proof it is best.</p>
+    </Section>
   );
 }
 
@@ -359,6 +489,8 @@ export function ResearchResult({ data, onRetry, onRefine, busy }: { data: Resear
       )}
 
       {data.benchmarks.length > 0 && <Section title="Reported results"><Benchmarks items={data.benchmarks} /></Section>}
+
+      <ModelSummary data={data} />
 
       <Disclosure label="Limitations and provenance" className="rounded-xl border border-border bg-surface/40 px-3.5 py-2.5">
         <div className="space-y-3 text-[13px] leading-5 text-muted-foreground">

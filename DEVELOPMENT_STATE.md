@@ -85,7 +85,7 @@ Errors: `HTTPException` with `ErrorResponse` under `detail` (stable codes incl. 
 
 ## Test status (verified 2026-10-05)
 
-- **2145 passed** backend (~3 min) + 33 frontend unit tests + 19 browser checks (70 backend are research tests, all offline: fake provider, fake Gemini). Run: `cd datapilot/backend && .\.venv\Scripts\python.exe -m pytest -q`
+- **2376 passed** backend (~2-4 min, verified 2026-10-06) + 60 frontend unit tests (verified 2026-10-06) + 19 browser checks (last run 2026-10-05) (70 backend are research tests, all offline: fake provider, fake Gemini). Run: `cd datapilot/backend && .\.venv\Scripts\python.exe -m pytest -q`
 - Both new benchmarks and the ranking-eval reports are byte-identical under `PYTHONHASHSEED` 0, 5, 88, 1234.
 - **Live E2E** `python -m scripts.run_dataset_analysis_e2e` (real UCI/OpenML/HF/Kaggle, no Gemini): 12/12.
   One live Gemini idea-prose call (3 of 3 ideas rephrased and validated) was run by hand.
@@ -431,3 +431,48 @@ both benchmark scripts (metrics above must not move unexpectedly); for registry/
   the knowledge-base text. Two parallel calls (setting `research_deep_analysis_enabled`, `..._papers` = 6); skipped when headroom < 3.
 - UI: Recommended approach card, comparison table, per-algorithm full analysis, per-paper analysis with quotes.
 - Tests: backend 2348, frontend 50.
+
+## Relevance upgrade, execution plans, dataset setting check (2026-10-06)
+Triggered by user testing: dataset-named research and dataset recommendations sometimes surfaced loosely related results.
+Measured first, on live requests, then fixed:
+- **Found:** Semantic Scholar, arXiv and Crossref each run only the FIRST 2 queries (`max_queries = 2`), and those were always the
+  generic `"X machine learning"` / `"X classification"`; the AI's specific queries were appended last (and only 2 kept), so three of
+  four scholarly sources never saw them. The dataset NAME was never used. A query `"churn customer churn"` repeated a word.
+  On `POST /datasets/recommend` ("taxi fare ... New York City") the generic and synthetic taxi sets outranked the real NYC taxi data.
+- **Research queries (`research/queries.py`, `service.py`):** `dataset_subject()` turns a dataset name into subject words (file
+  labels such as `train.csv` give none); the name becomes a query (`"Telco Customer Churn" dataset classification`); AI queries
+  (now up to 3, drift-checked as before) go FIRST so every source sees them; the AI question call and the relevance judge now receive
+  the dataset name, target and columns. Query cap stays 5 (an existing test pins "a few focused queries").
+- **Paper ranking (`research/ranking.py`):** two bonuses ON TOP of the existing weights (never subtract, total capped at 100, listed
+  in `score_components` so the sum still equals the score): `dataset` (up to 6, distinctive words of the dataset name found in the
+  paper) and `agreement` (up to 4, several different searches returned it).
+- **NEW AI CALL 1, `research/execution.py`: how to run each algorithm.** Every recommended algorithm now has
+  `analysis.execution`: when to pick it (so the user sees real alternatives, not one "best"), libraries, 5-7 ordered steps, settings
+  to tune, how to validate it for the task, pitfalls. A built-in plan from `knowledge.py` is ALWAYS attached (no AI); one batched call
+  for the top 4 algorithms refines it for the user's columns, in parallel with the two existing analysis calls. Validation: libraries
+  must be in a fixed list of real ones; backticked names must be a real column, a known setting or look like a real library
+  identifier; no promised accuracy, no causal claims, no links; per-field fallback; fewer than 4 valid steps keeps the built-in plan.
+  Runs only with headroom >= 5 (`EXECUTION_MIN_HEADROOM`); settings `research_execution_enabled`, `research_execution_algorithms`.
+- **NEW AI CALL 2, `datasets/fit_judge.py`: does each dataset match the user's SETTING?** One batch call over the top 10
+  registry-confirmed datasets, 0-3. It can only REORDER: 3 moves ahead, 0-1 moves behind, others keep their deterministic order.
+  It never changes a score, a factor or a verification status; the move is written into the dataset's ranking reasons
+  (`ai_fit`, `ai_fit_reason` on the candidate) and `meta.ai_fit` {judged, reordered, note}. AI suggestions are never judged (the
+  model would grade its own guess). Runs inside `recommend()` only, so `/datasets/search` stays free of Gemini calls. Skipped
+  below headroom 3 or with fewer than 2 confirmed datasets; settings `dataset_fit_judge_enabled`, `dataset_fit_judge_candidates`.
+  The final recommendation says "judged a looser match to your stated setting" when that is why a dataset ranks lower.
+- **Project blueprints (no extra call):** the existing blueprint call now also returns `deliverables`, `tools` (fixed real-library
+  list) and `portfolio_angle`; deterministic text always present.
+- **UI:** "How to run it" plan and "Pick it when" per algorithm; deliverables / tools / how to present on idea cards; "Setting match
+  n/3" badge and AI note on dataset cards; full prompt shown under "What should the papers be about?"; the "Models compared" table
+  at the bottom of research shows EVERY reported metric per model (hover = paper, click = open it).
+- **Call budget per request now:** research up to 5 (+1 optional synthesis), dataset recommendation up to 3 (requirements,
+  suggestions, fit check). Per-minute cap is 8 per key (16 with two keys); calls fall back to the deterministic result when spent.
+- **Live evidence (2026-10-06):** NYC taxi request: before, ranks 1-2 were generic/synthetic sets and the NYC sets were 3-5; after,
+  ranks 1-5 are the NYC/fare sets (ai_fit 3,3,3,3,2) and the generic ones are 7-10 (ai_fit 1), scores unchanged. Telco churn research:
+  5 calls, queries led by AI-written ones plus the dataset-name query, top papers mention the Telco dataset, every algorithm has a plan.
+- **Test change, stated explicitly:** `test_ai_understanding_and_judging_are_used_and_counted` asserted 4 AI calls; it is now 5
+  because one call was added on purpose. No assertion was weakened otherwise.
+- Tests: backend 2376, frontend 60 (new: `tests/unit/test_relevance_upgrade.py`, `TestBuildGuidance` in `test_project_blueprints.py`,
+  `src/components/relevance-ui.test.tsx`). Re-run this session: ranking benchmark (NDCG@5 0.9546 / 0.9866 graded, P@1 0.9032 / 0.9811 graded: unchanged) and recommendation eval
+  (best match correct 0.9623, acceptable 0.9825). Not re-run: the live registry E2E and the browser checks. Regenerating the reports
+  rewrote `evaluation/*` with date-driven recency noise only; those files were deliberately not committed.

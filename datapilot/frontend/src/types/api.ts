@@ -330,6 +330,40 @@ export interface components {
              * @default false
              */
             ai_enriched: boolean;
+            execution?: components["schemas"]["AlgorithmExecution"] | null;
+        };
+        /**
+         * AlgorithmExecution
+         * @description How to actually run one algorithm: when to pick it, what to use, ordered steps, settings, validation, pitfalls.
+         */
+        AlgorithmExecution: {
+            /**
+             * Choose When
+             * @description The situation in which this algorithm is the right pick.
+             */
+            choose_when?: string | null;
+            /**
+             * Libraries
+             * @description Python libraries, from a fixed list of real ones.
+             */
+            libraries?: string[];
+            /** Steps */
+            steps?: string[];
+            /**
+             * Key Settings
+             * @description Settings to tune, with a starting value or range.
+             */
+            key_settings?: string[];
+            /** Validate With */
+            validate_with?: string | null;
+            /** Pitfalls */
+            pitfalls?: string[];
+            /**
+             * Source
+             * @description datapilot_knowledge | ai_inferred
+             * @default datapilot_knowledge
+             */
+            source: string;
         };
         /** AlgorithmRecommendation */
         AlgorithmRecommendation: {
@@ -1007,6 +1041,13 @@ export interface components {
             ranking_factors?: components["schemas"]["RankingFactor"][];
             /** Ranking Reasons */
             ranking_reasons?: string[];
+            /**
+             * Ai Fit
+             * @description An AI model's 0-3 judgement of how well this dataset fits the user's stated setting. Advisory: it may reorder datasets but never changes a score or a verification status.
+             */
+            ai_fit?: number | null;
+            /** Ai Fit Reason */
+            ai_fit_reason?: string | null;
             /** @description Per-field breakdown of what this candidate's metadata is externally published, inferred or missing. */
             evidence?: components["schemas"]["EvidenceAssessment"] | null;
             /** @description Metadata a model claimed about this dataset after being merged into this verified record. Unconfirmed, and never used as evidence. */
@@ -2525,6 +2566,22 @@ export interface components {
              * @default
              */
             effort: string;
+            /**
+             * Deliverables
+             * @description What to produce so the project is finished and shareable.
+             */
+            deliverables?: string[];
+            /**
+             * Tools
+             * @description Python libraries to build it with (from a fixed list of real ones).
+             */
+            tools?: string[];
+            /**
+             * Portfolio Angle
+             * @description How to present the project so it stands out.
+             * @default
+             */
+            portfolio_angle: string;
             /**
              * Source
              * @description deterministic | ai_inferred

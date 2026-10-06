@@ -1,4 +1,4 @@
-import { Check, ExternalLink, HelpCircle, ScanSearch, ShieldAlert, X } from "lucide-react";
+import { Check, ExternalLink, HelpCircle, ScanSearch, ShieldAlert, Sparkles, X } from "lucide-react";
 import { Badge, type Tone } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Disclosure } from "@/components/ui/disclosure";
@@ -88,7 +88,14 @@ export function DatasetCard({ item, onAnalyze, busy, index = 0, recommended = fa
         <Badge tone={compat.tone}>{compat.label}</Badge>
         {item.confidence && <Badge tone="neutral">Confidence: {item.confidence.level}</Badge>}
         {d.task_types.slice(0, 2).map((t) => <Badge key={t}>{humanize(t)}</Badge>)}
+        {d.ai_fit != null && (
+          <Badge tone={d.ai_fit >= 3 ? "success" : d.ai_fit === 2 ? "info" : "warning"}
+            title="An AI model's judgement of how well this dataset matches the setting you described. It can change the order, never the score.">
+            <Sparkles className="size-3" aria-hidden />Setting match {d.ai_fit}/3
+          </Badge>
+        )}
       </div>
+      {d.ai_fit != null && d.ai_fit_reason && <p className="mt-2 text-[13px] leading-5 text-subtle">AI note: {d.ai_fit_reason}</p>}
 
       <div className="mt-3.5"><FeatureChips item={item} /></div>
 

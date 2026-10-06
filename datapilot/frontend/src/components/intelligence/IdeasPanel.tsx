@@ -113,6 +113,23 @@ export function IdeaCard({ idea, onResearch, busy }: { idea: ProjectIdea; onRese
               )}
               <Bullets title="Watch out for" items={bp.pitfalls} />
               <Bullets title="Stretch goals" items={bp.stretch_goals} />
+              {(bp.deliverables?.length > 0 || bp.tools?.length > 0 || bp.portfolio_angle) && (
+                <div className="space-y-4 border-t border-border pt-4">
+                  <Bullets title="What to deliver" items={bp.deliverables ?? []} />
+                  {bp.tools?.length > 0 && (
+                    <div>
+                      <h5 className="mb-1.5 text-xs font-medium uppercase tracking-wider text-subtle">Build it with</h5>
+                      <ul className="flex flex-wrap gap-1.5">{bp.tools.map((t) => <li key={t} className="rounded-md border border-border bg-muted/50 px-2 py-0.5 font-mono text-xs text-muted-foreground">{t}</li>)}</ul>
+                    </div>
+                  )}
+                  {bp.portfolio_angle && (
+                    <div>
+                      <h5 className="mb-1 text-xs font-medium uppercase tracking-wider text-subtle">How to present it</h5>
+                      <p className="text-[13.5px] leading-6 text-muted-foreground"><Rich>{bp.portfolio_angle}</Rich></p>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </Disclosure>
         </div>

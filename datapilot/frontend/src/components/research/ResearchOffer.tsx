@@ -12,6 +12,7 @@ export function ResearchOffer({ action, onRun, aiAvailable, busy }: {
 }) {
   const payload = (action.payload ?? {}) as { project?: { problem?: string | null; description?: string | null } };
   const suggested = payload.project?.problem ?? payload.project?.description ?? "";
+  const fullPrompt = (payload.project?.description ?? "").trim();
   const [useAi, setUseAi] = useState(false);
   const [question, setQuestion] = useState(suggested);
   const id = useId();
@@ -33,6 +34,12 @@ export function ResearchOffer({ action, onRun, aiAvailable, busy }: {
               <label htmlFor={qid} className="text-xs font-medium text-subtle">What should the papers be about?</label>
               <input id={qid} value={question} maxLength={200} onChange={(e) => setQuestion(e.target.value)}
                 className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none transition-colors focus:border-accent/60" />
+              {fullPrompt && (
+                <div className="mt-3 rounded-lg border border-border bg-raised/60 px-3.5 py-3" aria-label="Your project description">
+                  <h4 className="text-[11px] font-medium uppercase tracking-wider text-subtle">Your project description</h4>
+                  <p className="mt-1.5 whitespace-pre-wrap text-[13.5px] leading-6 text-muted-foreground [overflow-wrap:anywhere]">{fullPrompt}</p>
+                </div>
+              )}
             </div>
           )}
           {available && (
