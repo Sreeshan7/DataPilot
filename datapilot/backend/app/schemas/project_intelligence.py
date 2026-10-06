@@ -237,6 +237,9 @@ class ProjectBlueprint(BaseModel):
     pitfalls: list[str] = Field(default_factory=list)
     stretch_goals: list[str] = Field(default_factory=list)
     effort: str = ""
+    deliverables: list[str] = Field(default_factory=list, description="What to produce so the project is finished and shareable.")
+    tools: list[str] = Field(default_factory=list, description="Python libraries to build it with (from a fixed list of real ones).")
+    portfolio_angle: str = Field("", description="How to present the project so it stands out.")
     source: str = Field("deterministic", description="deterministic | ai_inferred")
 
 

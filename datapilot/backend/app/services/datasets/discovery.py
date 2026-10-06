@@ -64,6 +64,9 @@ class DatasetDiscoveryResult:
     enrichment_succeeded: int = 0
     enrichment_error_codes: list[str] = field(default_factory=list)
     confirmed_suggestions: int = 0
+    fit_judged: int = 0
+    fit_reordered: bool = False
+    fit_note: Optional[str] = None
 
     def count_by_source_type(self, source_type: SourceType) -> int:
         return sum(1 for c in self.candidates if c.source_type is source_type)
@@ -86,6 +89,7 @@ class DatasetDiscoveryService:
         sources: Optional[Sequence[DatasetSource]] = None,
         ranking_engine: Optional[DatasetRankingEngine] = None,
         project_analyzer: Optional[ProjectAnalyzer] = None,
+        fit_writer=None,
     ) -> None:
         from app.services.datasets import build_default_sources
 
@@ -95,6 +99,7 @@ class DatasetDiscoveryService:
         )
         self._ranking = ranking_engine or DatasetRankingEngine(self._settings)
         self._project_analyzer = project_analyzer
+        self._fit_writer = fit_writer
 
     @property
     def sources(self) -> list[DatasetSource]:
@@ -170,7 +175,36 @@ class DatasetDiscoveryService:
                             (understanding.ml_tasks[0].task if getattr(understanding, "ml_tasks", None) else None)) if b]
         progress.done("requirements", " · ".join(str(b) for b in bits) or None)
         result = await self.discover(requirements, limit=limit, request_id=rid)
-        return requirements, result
+        return requirements, await self._apply_fit_judge(description, requirements, result)
+
+    async def _apply_fit_judge(self, description: str, requirements: ProjectAnalysisData, result: DatasetDiscoveryResult) -> DatasetDiscoveryResult:
+        """One optional AI call that can reorder (never rescore) the ranked datasets by how well they match the user's setting."""
+        if not self._settings.dataset_fit_judge_enabled or len(result.candidates) < 2:
+            return result
+        from app.services.datasets import fit_judge
+
+        writer = self._fit_writer
+        if writer is None:
+            from app.services.llm_service import LLMService  # built only when needed; shares the process-wide key budget
+
+            writer = self._fit_writer = LLMService(self._settings)
+        understanding = requirements.project_understanding
+        project = {
+            "description": " ".join((description or "").split())[:600],
+            "objective": getattr(understanding, "objective", None),
+            "target": getattr(getattr(understanding, "target", None), "value", None),
+            "domain": getattr(getattr(understanding, "domain", None), "value", None),
+        }
+        progress.start("fit", "Checking each dataset against your specific setting")
+        fits, why = await fit_judge.judge_fit(writer, self._settings, project, result.candidates)
+        if not fits:
+            result.fit_note = f"AI setting check skipped: {why}." if why else None
+            progress.skip("fit", "used the built-in ranking")
+            return result
+        result.candidates, result.fit_reordered = fit_judge.reorder(result.candidates, fits)
+        result.fit_judged = len(fits)
+        progress.done("fit", f"{len(fits)} datasets checked" + (", order adjusted" if result.fit_reordered else ""))
+        return result
 
     # ------------------------------------------------------------------
     # Internals

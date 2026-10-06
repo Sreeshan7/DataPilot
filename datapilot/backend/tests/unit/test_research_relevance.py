@@ -112,7 +112,7 @@ class TestAssist:
         assert body.gemini.assisted == ["question", "relevance"] and body.gemini.calls_made == 2
         assert body.interpretation.ai_assisted
         assert body.papers[0].ai_relevance == 3 and body.papers[0].ai_reason == "about traffic"
-        assert len(writer.calls) == 4  # question, relevance, then the two in-depth analysis calls (which fail gracefully here: no reply)
+        assert len(writer.calls) == 5  # question, relevance, then the three parallel analysis calls: papers, algorithms, execution plans (they fail gracefully here: no reply)
 
     def ids(self):
         service = ResearchService(settings(), FakeProvider(TRAFFIC_HITS))

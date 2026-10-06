@@ -54,7 +54,7 @@ def _plan_for(intent: UserIntent, has_file: bool, has_goal: bool) -> list[tuple[
     if intent is UserIntent.USER_A_DATASET_DISCOVERY:
         return [("requirements", "Extracting your project requirements"), ("merge", "Removing duplicates across sources"),
                 ("rank", "Comparing candidates with your project"), ("enrich", "Reading details of the best matches"),
-                ("compat", "Checking compatibility with your project")]
+                ("fit", "Checking each dataset against your specific setting"), ("compat", "Checking compatibility with your project")]
     if has_file:
         steps = [("read", "Reading your file"), ("profile", "Profiling every column"),
                  ("targets", "Looking for what could be predicted"), ("quality", "Checking data quality"),

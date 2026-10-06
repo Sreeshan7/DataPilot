@@ -11,6 +11,12 @@ Components and weights (sum 100):
 * citations 5: log-scaled (1,000 citations = full marks); unknown earns nothing, never a guess
 * source 5: a known publisher or repository scores higher than a university page
 
+Two bonuses sit on top (the total is still capped at 100) and only ever add:
+
+* dataset up to 6: the distinctive words of the dataset's own name ("telco", "titanic") appear in the paper, which is
+  strong evidence it is about this data or this kind of data;
+* agreement up to 4: several different searches returned the paper (one search earns nothing, four or more earn all).
+
 TOPIC GATE: a paper must mention at least half of the core topics (any synonym counts) or it is dropped, whatever
 else it scores. A method paper that never mentions the subject is not about the subject.
 
@@ -84,6 +90,7 @@ def rank(
     domain = _words(project.domain or "")
     target_text = project.target or (dataset.target if dataset else None) or ""
     target = _words(target_text)
+    dataset_words = _words(" ".join(plan.dataset_terms))
     scored: list[Paper] = []
     for paper in papers:
         if min_year and paper.publication_year is not None and paper.publication_year < min_year:
@@ -109,7 +116,10 @@ def rank(
             r = 10.0 * max(0.0, min(1.0, 1.0 - (year_now - paper.publication_year) / 10.0))
         cites = 5.0 * min(1.0, math.log10(1 + max(0, paper.citation_count)) / 3.0) if paper.citation_count is not None else 0.0
         s = 5.0 if venue_for(host_of(paper.url)) and paper.venue not in ("ResearchGate", "Google Scholar") else 2.5
-        comps = {"problem": p, "outcome": o, "context": c, "task": t, "domain": d, "target": g, "methods": m, "recency": r, "citations": cites, "source": s}
+        ds = 6.0 * _overlap(dataset_words, whole)
+        agree = 4.0 * min(1.0, max(0, len(paper.matched_queries) - 1) / 3.0)
+        comps = {"problem": p, "outcome": o, "context": c, "task": t, "domain": d, "target": g, "methods": m, "recency": r, "citations": cites, "source": s,
+                 "dataset": ds, "agreement": agree}
         score = round(sum(comps.values()), 2)
         reasons = []
         if matched:
@@ -119,6 +129,10 @@ def rank(
             reasons.append("it also covers " + ", ".join(w for w in plan.context_terms if next(iter(_stems(w)), w) in whole))
         if t:
             reasons.append(f"it covers {task_word(project.task) or 'the task'}")
+        if ds:
+            reasons.append("it mentions " + ", ".join(w for w in plan.dataset_terms if next(iter(_stems(w)), w) in whole) + " from your dataset's name")
+        if len(paper.matched_queries) >= 3:
+            reasons.append(f"{len(paper.matched_queries)} different searches found it")
         if paper.methods:
             reasons.append("it names " + ", ".join(paper.methods[:3]))
         if paper.publication_year:

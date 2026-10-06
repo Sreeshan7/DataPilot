@@ -45,6 +45,12 @@ _TASK_WORDS = {
     "anomaly_detection": "anomaly detection", "ranking": "ranking", "multilabel_classification": "classification",
 }
 _TABULAR_TASKS = {"classification", "regression"}
+#: Words of a dataset's file or listing name that say nothing about its subject ("train.csv", "clean data v2").
+_GENERIC_NAME_WORDS = frozenset("""
+dataset datasets data csv xlsx xls json parquet zip train test training testing val validation set sample samples new
+clean cleaned final raw version full small large big kaggle uci hugging face huggingface file files table tables records
+record project projects demo example examples copy updated update latest
+""".split())
 #: Common subjects of ML projects, so a typo of one of them is recognised even if the dictionary lacks it.
 _EXTRA_VOCAB = frozenset("""
 traffic weather student customer churn fraud diabetes price energy crop medical health disease cancer credit loan
@@ -112,6 +118,8 @@ class QueryPlan:
     options: list[str] = field(default_factory=list)   # readings to pick from when the question is ambiguous
     clarification: Optional[str] = None          # the one question to ask instead of guessing
     dataset_check: Optional[tuple[str, str, str]] = None   # (status, note, source)
+    dataset_name: Optional[str] = None           # the dataset's own name, when it says something about its subject
+    dataset_terms: list[str] = field(default_factory=list)   # the subject words of that name, e.g. "telco", "customer"
 
     @property
     def core_terms(self) -> list[str]:
@@ -120,6 +128,16 @@ class QueryPlan:
     @property
     def all_core_words(self) -> list[str]:
         return [w for g in self.core_groups for w in g]
+
+
+def dataset_subject(dataset: Optional[ResearchDataset]) -> tuple[Optional[str], list[str]]:
+    """(name, subject words) of a dataset's name, or (None, []) when the name is only a file label ("train.csv")."""
+    if not dataset or not dataset.name:
+        return None, []
+    name = " ".join(re.sub(r"\.(?:csv|xlsx?|json|parquet|zip)$", "", dataset.name.strip(), flags=re.I).replace("_", " ").replace("-", " ").split())
+    words = [w.lower() for w in re.findall(r"[A-Za-z]{3,}", name)]
+    subject = [w for w in dict.fromkeys(words) if w not in _GENERIC_NAME_WORDS and w not in META_WORDS]
+    return (name[:80], subject[:4]) if subject else (None, [])
 
 
 def understand(project: ResearchProject, dataset: Optional[ResearchDataset] = None) -> QueryPlan:
@@ -146,7 +164,9 @@ def understand(project: ResearchProject, dataset: Optional[ResearchDataset] = No
         return QueryPlan(problem=None, core_groups=[], why_not=(
             "Research needs to know the problem. Give a problem statement such as 'student academic performance "
             "prediction' (a description naming the outcome also works)."))
-    return QueryPlan(problem=" ".join(core), core_groups=[[w] for w in core], context_terms=context, corrections=corrections)
+    name, name_terms = dataset_subject(dataset)
+    return QueryPlan(problem=" ".join(core), core_groups=[[w] for w in core], context_terms=context, corrections=corrections,
+                     dataset_name=name, dataset_terms=[w for w in name_terms if w not in core])
 
 
 def check_dataset(project: ResearchProject, dataset: Optional[ResearchDataset]) -> Optional[tuple[str, str, str]]:
@@ -178,15 +198,22 @@ def build_queries(
     domain = _clean(project.domain) if project.domain else None
     topic = f'"{plan.problem}"' if len(plan.core_terms) > 1 else plan.problem
     queries = [f"{topic} machine learning"]
+    if plan.dataset_name:  # papers that used this very dataset are the most relevant ones there are
+        queries.append(f'"{plan.dataset_name}" dataset {task or "machine learning"}')
+        if plan.dataset_terms:
+            queries.append(f"{' '.join(plan.dataset_terms[:2])} {plan.problem} {task or 'prediction'}")
     if task:
         queries.append(f"{topic} {task}")
-    if plan.outcome and plan.outcome.lower() not in plan.problem.lower():
-        queries.append(f"{topic} {plan.outcome}")
+    if plan.outcome and plan.outcome.lower() != plan.problem.lower():
+        if plan.problem.lower() in plan.outcome.lower():  # "customer churn" says more than "churn": search for it
+            queries.append(f'"{plan.outcome}" {task or "machine learning"}')
+        elif plan.outcome.lower() not in plan.problem.lower():
+            queries.append(f"{topic} {plan.outcome}")
+    queries.append(f"{topic} review OR survey")
     if plan.context_terms:
         queries.append(f"{plan.problem} {' '.join(plan.context_terms[:2])} prediction")
     if domain and domain.lower() not in plan.problem.lower():
         queries.append(f"{topic} {domain}")
-    queries.append(f"{topic} review OR survey")
     if task in _TABULAR_TASKS:
         queries.append(f"{topic} random forest gradient boosting")
     elif task == "forecasting":

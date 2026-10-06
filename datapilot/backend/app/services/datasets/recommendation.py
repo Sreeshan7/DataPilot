@@ -189,6 +189,8 @@ def _trade_off(
             f"{other_cov.unknown_count} required features unverified "
             f"(against {best_cov.unknown_count})"
         )
+    if best.ai_fit is not None and other.ai_fit is not None and other.ai_fit < best.ai_fit:
+        return "judged a looser match to your stated setting"
     gap = float(best.ranking_score or 0.0) - float(other.ranking_score or 0.0)
     if gap > 0:
         return f"scores {gap:.1f} points lower overall"
@@ -278,7 +280,7 @@ def build_final_recommendation(
     margin: Optional[float] = None
     close = False
     if runner is not None:
-        margin = round(float(best.ranking_score or 0.0) - float(runner[1].ranking_score or 0.0), 2)
+        margin = round(max(0.0, float(best.ranking_score or 0.0) - float(runner[1].ranking_score or 0.0)), 2)  # an AI reorder can invert a gap
         close = margin < CLOSE_CALL_MARGIN
 
     watch = _watch_out_for(best_intel)

@@ -36,6 +36,7 @@ from app.schemas.project_intelligence import (
 )
 from app.services.project_intelligence.gemini import _SAFE_NAME, _clean_goal, _reject_reason, build_payload
 from app.services.project_intelligence.shape import DataShape
+from app.services.research.execution import LIBRARIES
 
 logger = get_logger(__name__)
 
@@ -57,7 +58,10 @@ For EACH idea write a realistic, practical blueprint using ONLY the columns list
   "evaluation_plan": "<2 sentences: how to split the data and which metrics, and why>",
   "pitfalls": ["<specific risk for this data, max 30 words>"],
   "stretch_goals": ["<optional extension, max 20 words>"],
-  "effort": "<realistic time for a motivated learner, e.g. 'about a weekend'>"}]}
+  "effort": "<realistic time for a motivated learner, e.g. 'about a weekend'>",
+  "deliverables": ["<3-5 concrete things to produce so the project is finished and shareable, e.g. a notebook, a comparison table, a small app>"],
+  "tools": ["<real Python libraries to build it with, e.g. pandas, scikit-learn, xgboost, matplotlib>"],
+  "portfolio_angle": "<2 sentences: how to present this so it stands out to a reader, leading with the decision it supports>"}]}
 Return exactly ONE blueprint for EVERY idea id you are given, none missing, in the same order.
 Rules: 5-7 build_steps in the order a person would do them (understand data, clean, features, baseline, stronger model,
 evaluate, present). 2-5 key_columns, the ones that matter most for the target. Backtick column names inside text. Never
@@ -121,6 +125,27 @@ _STEPS = {
 }
 
 
+_DELIVERABLES = {
+    "supervised": ["A notebook that reproduces every step from the raw file to the final numbers",
+                   "A comparison table of the baseline and the stronger models on the same split",
+                   "A short write-up: what the model gets right, where it fails, and what you would do next",
+                   "Optional: a small Streamlit app that takes inputs and shows a prediction"],
+    "forecast": ["A notebook with the time plots, features and walk-forward validation",
+                 "A chart of forecasts against what actually happened, with the error by horizon",
+                 "A short write-up of when the forecast should not be trusted"],
+    "descriptive": ["A notebook with the association analysis and the stability check",
+                    "A ranked table of columns with plots of how the outcome changes across each",
+                    "A plain-language write-up that says 'associated with', never 'causes'"],
+    "unsupervised": ["A notebook that scales the data, fits the methods and checks stability",
+                     "A profile of each group or flagged record with a few real examples",
+                     "A short write-up of what each group means and what to do about it"],
+}
+_TOOLS = {
+    "supervised": ["pandas", "numpy", "scikit-learn", "matplotlib"], "forecast": ["pandas", "numpy", "statsmodels", "scikit-learn", "matplotlib"],
+    "descriptive": ["pandas", "scikit-learn", "shap", "matplotlib"], "unsupervised": ["pandas", "numpy", "scikit-learn", "matplotlib"],
+}
+
+
 def _phrase(items: list[str], limit: int = 4) -> str:
     shown = [f"`{i}`" for i in items[:limit]]
     return ", ".join(shown) + (f" and {len(items) - limit} more" if len(items) > limit else "") if shown else "the available columns"
@@ -179,7 +204,10 @@ def deterministic_blueprint(idea: ProjectIdea, shape: DataShape, intel: FeatureI
         evaluation_plan=f"Use {split}. Report {values['metrics']} and compare every model with the baseline.",
         pitfalls=(idea.challenges + idea.limitations)[:5],
         stretch_goals=[s.strip() for s in re.split(r"(?<=[.])\s+", idea.extension_potential) if s.strip()][:4],
-        effort=_EFFORT.get(idea.difficulty, "a few evenings"), source="deterministic")
+        effort=_EFFORT.get(idea.difficulty, "a few evenings"), deliverables=list(_DELIVERABLES[kind]), tools=list(_TOOLS[kind]),
+        portfolio_angle=("Lead with the decision this supports, show the comparison against the baseline before the best number, "
+                         "and be upfront about the limits: that honesty is what makes a project credible."),
+        source="deterministic")
 
 
 # ------------------------------------------------------------------------------------------------------- AI
@@ -235,11 +263,19 @@ def validate_blueprint(entry: dict, base: ProjectBlueprint, allowed: set[str], f
             seen.add(k.column)
     if not any(k.role in ("key_driver", "supporting") for k in columns):
         columns = base.key_columns  # none of the AI's columns passed: keep the measured ones
+    deliverables = [d for d in ((_text(x, 200, allowed)) for x in (entry.get("deliverables") or [])[:5]) if d]
+    tools: list[str] = []
+    for item in (entry.get("tools") or [])[:8] if isinstance(entry.get("tools"), list) else []:
+        lib = LIBRARIES.get(str(item).strip().lower())
+        if lib and lib not in tools:
+            tools.append(lib)
+    angle = _text(entry.get("portfolio_angle"), 360, allowed)
     pitfalls = [p for p in ((_text(x, 260, allowed)) for x in (entry.get("pitfalls") or [])[:5]) if p]
     stretch = [s for s in ((_text(x, 200, allowed)) for x in (entry.get("stretch_goals") or [])[:4]) if s]
     return ProjectBlueprint(headline=headline, real_world_value=value, key_columns=columns, build_steps=steps,
                             evaluation_plan=evaluation, pitfalls=pitfalls or base.pitfalls, stretch_goals=stretch or base.stretch_goals,
-                            effort=effort, source="ai_inferred")
+                            effort=effort, deliverables=deliverables if len(deliverables) >= 2 else base.deliverables,
+                            tools=tools[:6] or base.tools, portfolio_angle=angle or base.portfolio_angle, source="ai_inferred")
 
 
 def _signal_labels(intel: FeatureIntelligence, target: Optional[str]) -> dict[str, str]:

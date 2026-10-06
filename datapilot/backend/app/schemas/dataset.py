@@ -440,6 +440,11 @@ class DatasetCandidate(BaseModel):
     ranking_score: Optional[float] = Field(None, ge=0.0, le=100.0)
     ranking_factors: list[RankingFactor] = Field(default_factory=list)
     ranking_reasons: list[str] = Field(default_factory=list)
+    ai_fit: Optional[int] = Field(
+        None, ge=0, le=3,
+        description=("An AI model's 0-3 judgement of how well this dataset fits the user's stated setting. Advisory: it may reorder "
+                     "datasets but never changes a score or a verification status."))
+    ai_fit_reason: Optional[str] = None
 
     # -- evidence -----------------------------------------------------------
     evidence: Optional[EvidenceAssessment] = Field(

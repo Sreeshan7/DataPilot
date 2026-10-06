@@ -385,6 +385,8 @@ def _meta(result: Any) -> dict[str, Any]:
             "error_codes": result.enrichment_error_codes,
         },
         "confirmed_ai_suggestions": result.confirmed_suggestions,
+        "ai_fit": {"judged": getattr(result, "fit_judged", 0), "reordered": getattr(result, "fit_reordered", False),
+                   "note": getattr(result, "fit_note", None)},
         "source_types": {
             "verified_external": "Real dataset published by an external registry",
             "ai_suggested": "Model suggestion, not yet confirmed externally",

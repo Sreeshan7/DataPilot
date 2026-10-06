@@ -28,7 +28,7 @@ from app.services.research import methods as method_tools
 from app.services.research.normalize import normalise
 from app.services.research.providers import ProviderError, ResearchProvider, SearchHit, WebSearchProvider
 from app.services.research.scholarly import ArxivProvider, CrossrefProvider, OpenAlexProvider, SemanticScholarProvider
-from app.services.research import assist, deepdive
+from app.services.research import assist, deepdive, execution
 from app.services.research.fulltext import apply_full_text, read_full_text
 from app.services.research.progress import Progress
 from app.services.research.queries import QueryPlan, build_queries, check_dataset, task_word, understand
@@ -40,6 +40,7 @@ logger = get_logger(__name__)
 
 MIN_RELEVANCE = 30.0
 ASSIST_MIN_HEADROOM = 3  # leave calls for the rest of the app: assist only when the budget is comfortable
+EXECUTION_MIN_HEADROOM = 5  # the execution plans are a third parallel call: ask for it only with room to spare
 
 
 MIN_PRIMARY_PAPERS = 3  # fewer than this from the scholarly indexes and the web search is tried as well
@@ -157,7 +158,7 @@ class ResearchService:
                 plan.core_groups, plan.ai_assisted = understood.core_groups, True
                 plan.context_terms = understood.context_terms or plan.context_terms
                 plan.problem = understood.problem
-                extra = understood.queries[:2]
+                extra = understood.queries[:3]
                 plan.outcome, plan.task = understood.outcome, understood.task
                 plan.clarification, plan.options = understood.clarification, understood.options
                 if understood.dataset_check and understood.dataset_check[0] != "unknown":
@@ -173,7 +174,9 @@ class ResearchService:
         queries, why_not = build_queries(request.project, request.dataset, s.research_max_queries, plan=plan)
         if not queries:
             return self._response(ResearchStatus.NEEDS_CLARIFICATION, why_not, [])
-        queries = list(dict.fromkeys(queries[: max(1, s.research_max_queries - len(extra))] + extra))
+        # The AI's queries are written for this exact problem, so they go first: the scholarly sources that take only a
+        # couple of queries (Semantic Scholar, arXiv, Crossref) then see the specific ones, not the generic fillers.
+        queries = list(dict.fromkeys(extra + queries))[: max(1, s.research_max_queries)]
         await pg.done("queries", f"{len(queries)} queries")
         shown = Interpretation(
             problem=plan.problem, core_terms=plan.core_terms, context_terms=plan.context_terms,
@@ -218,7 +221,7 @@ class ResearchService:
             await pg.skip("ai-relevance", "nothing to judge or budget low")
         if ranked and judge_ok:
             await pg.start("ai-relevance", f"{min(len(ranked), assist.JUDGE_BATCH)} papers")
-            judged, why = await assist.judge_relevance(writer, s, request.project, plan, ranked)
+            judged, why = await assist.judge_relevance(writer, s, request.project, plan, ranked, request.dataset)
             if judged:
                 ranked = self._apply_judgements(ranked, judged)
                 assisted.append("relevance")
@@ -255,7 +258,7 @@ class ResearchService:
         await pg.start("recommend")
         recommendations = recommend(methods, request.project, request.dataset)
         await pg.done("recommend", f"{len(recommendations)} ranked")
-        # In-depth analysis. DataPilot's own (knowledge base) analysis is always attached; two parallel AI calls refine it.
+        # In-depth analysis. DataPilot's own (knowledge base) analysis is always attached; up to three parallel AI calls refine it.
         task = plan.task or task_word(request.project.task) or (task_word(request.dataset.task) if request.dataset else None)
         paper_map = {p.id: p for p in selected}
         profiles = {r.method: deepdive.deterministic_algorithm_analysis(r, task, request.dataset, paper_map, metrics) for r in recommendations}
@@ -264,22 +267,31 @@ class ResearchService:
                    and getattr(writer, "headroom", 99) >= ASSIST_MIN_HEADROOM)
         paper_analyses: dict = {}
         ai_algorithms: dict = {}
+        exec_base = {r.method: execution.deterministic_execution(r.method, task, request.dataset) for r in recommendations}
+        ai_execution: dict = {}
+        exec_ai = bool(deep_ai and s.research_execution_enabled and getattr(writer, "headroom", 99) >= EXECUTION_MIN_HEADROOM)
         if deep_ai:
             await pg.start("analysis", detail=f"{min(len(selected), s.research_deep_analysis_papers)} papers, {len(recommendations)} algorithms")
             view = deepdive._project_view(request.project, request.dataset, plan.problem, plan.outcome)
-            (paper_analyses, _), (ai_algorithms, ai_approach) = await asyncio.gather(
+            (paper_analyses, _), (ai_algorithms, ai_approach), ai_execution = await asyncio.gather(
                 deepdive.analyze_papers(writer, s, view, selected, texts),
-                deepdive.analyze_algorithms(writer, s, view, recommendations, profiles, selected, texts, request.dataset))
+                deepdive.analyze_algorithms(writer, s, view, recommendations, profiles, selected, texts, request.dataset),
+                execution.refine_execution(writer, s, view, recommendations, exec_base, request.dataset) if exec_ai else asyncio.sleep(0, {}))
             approach = ai_approach or approach
             if paper_analyses:
                 assisted.append("paper_analysis")
             if ai_algorithms or ai_approach:
                 assisted.append("algorithm_analysis")
+            if ai_execution:
+                assisted.append("execution_plans")
             await (pg.done("analysis", f"{len(paper_analyses)} papers and {len(ai_algorithms)} algorithms analysed")
                    if paper_analyses or ai_algorithms else pg.skip("analysis", "used DataPilot's own analysis"))
             if not (paper_analyses or ai_algorithms):
                 notes.append("AI in-depth analysis was unavailable or did not pass validation; DataPilot's own algorithm profiles are shown.")
-        recommendations = [r.model_copy(update={"analysis": ai_algorithms.get(r.method, profiles[r.method])}) for r in recommendations]
+        recommendations = [
+            r.model_copy(update={"analysis": ai_algorithms.get(r.method, profiles[r.method]).model_copy(
+                update={"execution": ai_execution.get(r.method) or exec_base[r.method]})})
+            for r in recommendations]
         selected = [p.model_copy(update={"analysis": paper_analyses[p.id]}) if p.id in paper_analyses else p for p in selected]
         if request.options.use_ai and s.research_gemini_enabled:
             await pg.start("synthesis")

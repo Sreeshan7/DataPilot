@@ -168,6 +168,18 @@ class PaperUse(BaseModel):
     note: str
 
 
+class AlgorithmExecution(BaseModel):
+    """How to actually run one algorithm: when to pick it, what to use, ordered steps, settings, validation, pitfalls."""
+
+    choose_when: Optional[str] = Field(None, description="The situation in which this algorithm is the right pick.")
+    libraries: list[str] = Field(default_factory=list, description="Python libraries, from a fixed list of real ones.")
+    steps: list[str] = Field(default_factory=list)
+    key_settings: list[str] = Field(default_factory=list, description="Settings to tune, with a starting value or range.")
+    validate_with: Optional[str] = None
+    pitfalls: list[str] = Field(default_factory=list)
+    source: str = Field("datapilot_knowledge", description="datapilot_knowledge | ai_inferred")
+
+
 class AlgorithmAnalysis(BaseModel):
     """A profile of one algorithm: general knowledge, how the papers used it, and how it fits the user's data."""
 
@@ -180,6 +192,7 @@ class AlgorithmAnalysis(BaseModel):
     fit_for_your_data: str = ""
     source: str = Field("datapilot_knowledge", description="datapilot_knowledge | ai_inferred")
     ai_enriched: bool = False
+    execution: Optional[AlgorithmExecution] = None
 
 
 class RecommendedApproach(BaseModel):

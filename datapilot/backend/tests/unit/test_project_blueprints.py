@@ -183,3 +183,38 @@ class TestRanking:
         pi, _ = plan_for("customer_churn")
         weak = [i.model_copy(update={"feasibility": Feasibility(level="low", reasons=["too few rows"])}) for i in pi.project_ideas]
         assert not any(i.recommended for i in rank_ideas(weak))
+
+
+class TestBuildGuidance:
+    """Deliverables, tools and a portfolio angle: how to finish and present the project, with or without AI."""
+
+    def test_every_deterministic_plan_says_what_to_produce_and_what_to_build_it_with(self):
+        pi, _ = plan_for("customer_churn")
+        for idea in pi.project_ideas:
+            bp = idea.blueprint
+            assert len(bp.deliverables) >= 3 and bp.portfolio_angle
+            assert "pandas" in bp.tools and "scikit-learn" in bp.tools
+
+    def test_a_forecast_plan_names_a_forecasting_library(self):
+        pi, _ = plan_for("sales_timeseries")
+        forecasts = [i for i in pi.project_ideas if i.task.value == "time_series_forecasting"]
+        assert forecasts and all("statsmodels" in i.blueprint.tools for i in forecasts)
+
+    def good(self, payload, **over):
+        extra = {"deliverables": ["A notebook that reproduces the numbers.", "A one-page write-up."],
+                 "tools": ["sklearn", "pandas", "not-a-real-library"],
+                 "portfolio_angle": "Lead with the retention decision this supports.", **over}
+        return TestAiBlueprints().good_reply(payload, **extra)
+
+    def test_an_ai_plan_brings_its_own_guidance_and_unknown_libraries_are_dropped(self):
+        pi = build(outcome_of("customer_churn"), goal="predict churn of subscribers", writer=Writer(self.good), settings=SETTINGS)
+        bp = pi.project_ideas[0].blueprint
+        assert bp.source == "ai_inferred" and bp.tools == ["scikit-learn", "pandas"]
+        assert bp.deliverables[0].startswith("A notebook") and bp.portfolio_angle.startswith("Lead with")
+
+    def test_a_reply_without_usable_guidance_keeps_datapilots_own(self):
+        pi = build(outcome_of("customer_churn"), goal="predict churn of subscribers",
+                   writer=Writer(lambda p: self.good(p, deliverables=["It will reach 99% accuracy."], tools=["nothing-real"],
+                                                     portfolio_angle="Visit https://x.io")), settings=SETTINGS)
+        bp = pi.project_ideas[0].blueprint
+        assert bp.source == "ai_inferred" and len(bp.deliverables) >= 3 and "pandas" in bp.tools and "https" not in bp.portfolio_angle

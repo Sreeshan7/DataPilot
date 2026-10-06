@@ -50,6 +50,8 @@ class Settings(BaseSettings):
     dataset_discovery_genai_enabled: bool = True
     dataset_discovery_genai_max_candidates: int = 8
     dataset_discovery_max_query_terms: int = 6
+    dataset_fit_judge_enabled: bool = True        # one AI call: does each dataset match the user's specific setting?
+    dataset_fit_judge_candidates: int = 10
 
     # --- Phase 3B: metadata enrichment ---------------------------------------
     # Kaggle's list endpoint returns an empty description for every dataset, so a
@@ -161,6 +163,8 @@ class Settings(BaseSettings):
     research_ai_assist_enabled: bool = True
     research_deep_analysis_enabled: bool = True   # per-paper and per-algorithm in-depth analysis (two parallel AI calls)
     research_deep_analysis_papers: int = 6
+    research_execution_enabled: bool = True       # a third parallel AI call: how to run each top algorithm on this data
+    research_execution_algorithms: int = 4
     research_fulltext_enabled: bool = True        # read open-access PDFs of the top papers
     research_fulltext_papers: int = 4
     research_fulltext_max_bytes: int = 4_000_000
