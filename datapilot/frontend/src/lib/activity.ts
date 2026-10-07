@@ -135,6 +135,10 @@ export function traceFromResearch(r: ResearchResponse): TraceStep[] {
   const read = (r.papers ?? []).filter((p) => p.retrieval_status === "full_text").length;
   if (read) out.push(step("fulltext", "Read open-access full text", plural(read, "paper"), "done"));
   out.push(step("methods", "Compared methods", `${plural(r.methods.length, "method")} named in the retrieved text`, r.methods.length ? "done" : "skipped"));
+  if ((r.gemini.assisted ?? []).includes("figures")) {
+    const n = (r.benchmarks ?? []).filter((m) => m.evidence === "ai_inferred").length;
+    out.push(step("ai-f", "AI read the reported figures", `${plural(n, "figure")} read, each quote checked in the paper's text`, "done"));
+  }
   if (r.gemini.requested) {
     out.push(step("ai", "AI interpretation", r.gemini.status === "used" ? "checked against the evidence" : r.gemini.note ?? r.gemini.status, r.gemini.status === "used" ? "done" : "skipped"));
   }

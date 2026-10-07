@@ -163,6 +163,8 @@ class Settings(BaseSettings):
     research_ai_assist_enabled: bool = True
     research_deep_analysis_enabled: bool = True   # per-paper and per-algorithm in-depth analysis (two parallel AI calls)
     research_deep_analysis_papers: int = 6
+    research_figures_enabled: bool = True         # one AI call that reads every paper's reported figures (accuracy, F1...) for the comparison table
+    research_figures_papers: int = 10
     research_execution_enabled: bool = True       # a third parallel AI call: how to run each top algorithm on this data
     research_execution_algorithms: int = 4
     research_fulltext_enabled: bool = True        # read open-access PDFs of the top papers

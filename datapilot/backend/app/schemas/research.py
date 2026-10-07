@@ -153,6 +153,7 @@ class ReportedMetric(BaseModel):
     url: str
     evidence: EvidenceKind = EvidenceKind.WEB_VERIFIED
     statement: str = Field(..., description="How to read it: reported by the source, not a prediction for the user.")
+    quote: Optional[str] = Field(None, description="The exact sentence of the paper the figure was read from (AI-read figures only).")
 
 
 class Level(str, Enum):

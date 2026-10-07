@@ -28,7 +28,7 @@ from app.services.research import methods as method_tools
 from app.services.research.normalize import normalise
 from app.services.research.providers import ProviderError, ResearchProvider, SearchHit, WebSearchProvider
 from app.services.research.scholarly import ArxivProvider, CrossrefProvider, OpenAlexProvider, SemanticScholarProvider
-from app.services.research import assist, deepdive, execution
+from app.services.research import assist, deepdive, execution, figures
 from app.services.research.fulltext import apply_full_text, read_full_text
 from app.services.research.progress import Progress
 from app.services.research.queries import QueryPlan, build_queries, check_dataset, task_word, understand
@@ -142,7 +142,10 @@ class ResearchService:
                   ("gate", "Checking each paper is really about your subject")]
         if can_assist:
             steps.append(("ai-relevance", "AI is reading titles and abstracts"))
-        steps += [("methods", "Comparing methods and reported results"), ("recommend", "Matching methods to your task")]
+        steps += [("methods", "Comparing methods and reported results")]
+        if can_assist and s.research_figures_enabled:
+            steps.append(("figures", "AI is reading the accuracy and other figures in the papers"))
+        steps.append(("recommend", "Matching methods to your task"))
         if can_assist and s.research_deep_analysis_enabled:
             steps.append(("analysis", "Analysing the papers and algorithms in depth"))
         if request.options.use_ai and s.research_gemini_enabled:
@@ -255,6 +258,19 @@ class ResearchService:
         methods = method_tools.aggregate_methods(selected)
         metrics = method_tools.extract_metrics(selected, texts)
         await pg.done("methods", f"{len(methods)} methods, {len(metrics)} reported figures")
+        if can_assist and s.research_figures_enabled and getattr(writer, "headroom", 99) >= ASSIST_MIN_HEADROOM:
+            await pg.start("figures", f"{len(selected)} papers")
+            read, why = await figures.extract_figures(writer, s, selected, texts, metrics)
+            if read:
+                metrics = metrics + read
+                assisted.append("figures")
+                await pg.done("figures", f"{len(read)} figures read, quotes checked")
+            else:
+                if why:
+                    notes.append(f"AI figure reading skipped: {why}.")
+                await pg.skip("figures", "used the figures found in the text")
+        elif can_assist and s.research_figures_enabled:
+            await pg.skip("figures", "budget low")
         await pg.start("recommend")
         recommendations = recommend(methods, request.project, request.dataset)
         await pg.done("recommend", f"{len(recommendations)} ranked")

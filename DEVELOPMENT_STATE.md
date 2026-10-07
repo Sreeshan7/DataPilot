@@ -85,7 +85,7 @@ Errors: `HTTPException` with `ErrorResponse` under `detail` (stable codes incl. 
 
 ## Test status (verified 2026-10-05)
 
-- **2376 passed** backend (~2-4 min, verified 2026-10-06) + 60 frontend unit tests (verified 2026-10-06) + 19 browser checks (last run 2026-10-05) (70 backend are research tests, all offline: fake provider, fake Gemini). Run: `cd datapilot/backend && .\.venv\Scripts\python.exe -m pytest -q`
+- **2394 passed** backend (~5 min, verified 2026-10-07) + 60 frontend unit tests (verified 2026-10-06) + 19 browser checks (last run 2026-10-05) (70 backend are research tests, all offline: fake provider, fake Gemini). Run: `cd datapilot/backend && .\.venv\Scripts\python.exe -m pytest -q`
 - Both new benchmarks and the ranking-eval reports are byte-identical under `PYTHONHASHSEED` 0, 5, 88, 1234.
 - **Live E2E** `python -m scripts.run_dataset_analysis_e2e` (real UCI/OpenML/HF/Kaggle, no Gemini): 12/12.
   One live Gemini idea-prose call (3 of 3 ideas rephrased and validated) was run by hand.
@@ -476,3 +476,19 @@ Measured first, on live requests, then fixed:
   `src/components/relevance-ui.test.tsx`). Re-run this session: ranking benchmark (NDCG@5 0.9546 / 0.9866 graded, P@1 0.9032 / 0.9811 graded: unchanged) and recommendation eval
   (best match correct 0.9623, acceptable 0.9825). Not re-run: the live registry E2E and the browser checks. Regenerating the reports
   rewrote `evaluation/*` with date-driven recency noise only; those files were deliberately not committed.
+
+## AI figure reading for the "Models compared" table (2026-10-07)
+Problem: `methods.extract_metrics` only finds "<metric> of 91.2%" written metric-first, so most papers gave no figure and the
+"Reported results" column stayed empty.
+- **`research/figures.py`: ONE batched Gemini call** after retrieval, full-text reading and the regex metrics, before algorithm
+  recommendation/analysis (so the profiles and the table both use the figures). Input: abstract plus number-and-metric sentences of the
+  open-access text, for up to `research_figures_papers` (10) selected papers. Skipped when no paper text holds a number, no key, or
+  headroom < 3. Setting `research_figures_enabled`.
+- **Validation (per figure, in code):** quote verbatim in the text shown (20-300 chars), value written inside the quote, quote names the
+  metric, metric in a fixed list, bounded metrics <= 100, no links, not a repeat of a regex figure, <= 6 per paper. A method/setting not in the
+  text is dropped (the figure stays; method recovered from the quote). Nothing is computed or converted by the model.
+- **Labelling:** `evidence = ai_inferred`, new optional `quote` field on `ReportedMetric`; UI shows "read by AI, quote checked" + the quote in
+  the Reported-results table, in the figure tooltip, and a "What DataPilot did" step. Regex figures are unchanged and come first.
+- Call budget: research now up to 6 assist calls (+1 optional synthesis); `calls_made` cap of 8 still holds.
+- Tests: `tests/unit/test_research_figures.py` (18). No existing test changed. Backend 2394, frontend 60 (typecheck clean).
+- **Not verified live** (no real Gemini call made in this change); first live run should be checked by eye.

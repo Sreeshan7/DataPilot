@@ -3033,6 +3033,11 @@ export interface components {
              * @description How to read it: reported by the source, not a prediction for the user.
              */
             statement: string;
+            /**
+             * Quote
+             * @description The exact sentence of the paper the figure was read from (AI-read figures only).
+             */
+            quote?: string | null;
         };
         /**
          * RequirementMatch

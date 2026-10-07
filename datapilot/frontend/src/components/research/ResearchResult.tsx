@@ -271,7 +271,7 @@ function Benchmarks({ items }: { items: ReportedMetric[] }) {
               <tr key={`${m.paper_id}-${m.metric}-${i}`} className="align-top">
                 <td className="px-3.5 py-2">{m.metric}{m.context ? <div className="text-xs text-subtle">{m.context}</div> : null}</td>
                 <td className="py-2 font-medium tabular-nums">{m.value}</td>
-                <td className="py-2 text-muted-foreground">{m.method ?? "—"}{m.evidence === "paper_text" ? <div className="text-xs text-subtle">from the paper's text</div> : null}</td>
+                <td className="py-2 text-muted-foreground">{m.method ?? "—"}{m.evidence === "paper_text" ? <div className="text-xs text-subtle">from the paper's text</div> : null}{m.evidence === "ai_inferred" ? <div className="text-xs text-subtle">read by AI, quote checked{m.quote ? <> · “{m.quote}”</> : null}</div> : null}</td>
                 <td className="px-3.5 py-2"><a href={safeUrl(m.url) ?? undefined} target="_blank" rel="noopener noreferrer nofollow" className="line-clamp-2 text-accent hover:underline [overflow-wrap:anywhere]">{m.paper_title}</a></td>
               </tr>
             ))}
@@ -309,7 +309,7 @@ function ModelSummary({ data }: { data: ResearchResponse }) {
       {items.map((m, i) => (
         <li key={`${m.paper_id}-${m.metric}-${i}`} className="leading-5">
           <span className="text-muted-foreground">{m.metric}</span>{" "}
-          <a href={safeUrl(m.url) ?? undefined} target="_blank" rel="noopener noreferrer nofollow" title={`${m.paper_title}${m.context ? " · " + m.context : ""}`} className="font-semibold tabular-nums text-foreground hover:text-accent hover:underline">{m.value}</a>
+          <a href={safeUrl(m.url) ?? undefined} target="_blank" rel="noopener noreferrer nofollow" title={`${m.paper_title}${m.context ? " · " + m.context : ""}${m.quote ? " · “" + m.quote + "”" : ""}${m.evidence === "ai_inferred" ? " (read by AI, quote checked)" : ""}`} className="font-semibold tabular-nums text-foreground hover:text-accent hover:underline">{m.value}</a>
         </li>
       ))}
     </ul>
